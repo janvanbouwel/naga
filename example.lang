@@ -1,0 +1,29 @@
+# 1 dup 'print ( drop ) ? !
+
+# [ 1 2 3 ] ( len 0 = ' ( pop print loop ) ? ! ) $loop loop drop
+
+( = assert ) $assertEq
+
+# list init op
+( $op push ( len 1 = 'out ( \ op / loop ) ? ! ) $loop loop ) $fold
+
+[ 1 2 3 ] 0 '+ fold 6 assertEq
+
+( 0 '+ fold ) $sum
+
+1 1 + 2 assertEq
+
+1 dup + 2 assertEq
+
+[] \ 5 / len 1 assertEq out 5 assertEq
+
+[ 1 2 ] sum 3 assertEq
+
+5 ( 1 + ) $ao ( ao ) ! 6 assertEq
+
+# 1 dup 'print ( drop ) ? !
+# #
+# [] \ 1 2 3 / ( 5 + ) map sum 21 assertEq
+
+[ 1 2 3 ] sum 6 assertEq
+
