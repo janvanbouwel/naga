@@ -1,12 +1,12 @@
 import copy
 import sys
 
-from src.Unique import Unique
+from src.types.Types import Generic
 
 
 class Tokens:
-    quote = Unique("qt")
-    unquote = Unique("un")
+    quote = Generic("qt")
+    unquote = Generic("un")
 
 
 def add_tokens(tokens: list, add: list):

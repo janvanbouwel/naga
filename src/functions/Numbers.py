@@ -1,6 +1,6 @@
 from src.Expression import Function
-from src.types.Types import FunctionType, BaseTypes
 from src.Value import Value
+from src.types.Types import FunctionType, BaseTypes
 
 
 def int_literal(value: int):
