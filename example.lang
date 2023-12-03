@@ -1,6 +1,8 @@
 # 1 dup 'print ( drop ) ? !
 
-# [ 1 2 3 ] ( len 0 = ' ( pop print loop ) ? ! ) $loop loop drop
+( $op ( len 0 = 'drop ( \ op / loop ) ? ! ) dup $loop ! ) $foreach
+
+[ 1 2 3 ] 'print foreach
 
 ( = assert ) $assertEq
 
@@ -8,6 +10,8 @@
 ( $op push ( len 1 = 'out ( \ op / loop ) ? ! ) $loop loop ) $fold
 
 [ 1 2 3 ] 0 '+ fold 6 assertEq
+
+[ 1 4 5 ] 0 ( drop print 0 ) fold
 
 ( 0 '+ fold ) $sum
 
@@ -27,3 +31,5 @@
 
 [ 1 2 3 ] sum 6 assertEq
 
+# doWhile: arr ([>=n]->[]) m
+# [ 1 2 3 ] '+ 2 doWhile

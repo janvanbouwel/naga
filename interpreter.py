@@ -1,45 +1,41 @@
 import copy
 import sys
-from functools import reduce
 
-class Symbol:
-    def __init__(self, name=''):
-        self.name = f"S({name})"
-    def __repr__(self):
-        return self.name
-    def __copy__(self):
-        return self
-    def __deepcopy__(self, _):
-        return self
+from src.Unique import Unique
+
 
 class Tokens:
-    quote = Symbol("qt")
-    unquote = Symbol("un")
+    quote = Unique("qt")
+    unquote = Unique("un")
+
 
 def add_tokens(tokens: list, add: list):
     for token in reversed(add):
         tokens.append(token)
 
+
 def assertion(x):
     if not x: raise Exception("Assertion failed")
 
+
 funcs = {
     "[]": (0, 1, lambda: [[]]),
-    "+": (2, 1, lambda x,y: [x+y]),
+    "+": (2, 1, lambda x, y: [x + y]),
     "print": (1, 0, lambda x: [print(x), []][-1]),
     "dup": (1, 0, lambda x: [x, copy.deepcopy(x)]),
     "len": (1, 2, lambda x: [x, len(x)]),
     "drop": (1, 0, lambda _: []),
     "?": (3, 1, lambda cond, true, false: [true if cond else false]),
-    # "map": (2, 1, lambda lst, func: [ sum([ interprete(copy.deepcopy(func), [token]) for token in lst] , [])]),
-    "=": (2, 1, lambda x, y: [x==y]),
-    "assert": (1, 0, lambda x: [assertion(x), []][-1] ),
+    # "map": (2, 1, lambda lst, func: [ sum([ interpret(copy.deepcopy(func), [token]) for token in lst] , [])]),
+    "=": (2, 1, lambda x, y: [x == y]),
+    "assert": (1, 0, lambda x: [assertion(x), []][-1]),
     "pop": (1, 2, lambda lst: [lst, lst.pop()]),
     "push": (2, 1, lambda lst, val: [lst.append(val), [lst]][-1]),
     "out": (1, 1, lambda lst: [lst[0]])
 }
 
-def interprete(instructions: list, stack: list, context):
+
+def interpret(instructions: list, stack: list, context):
     instructions.reverse()
     trace = []
     quote = 0
@@ -63,7 +59,7 @@ def interprete(instructions: list, stack: list, context):
             case "[":
                 add_tokens(instructions, ["[]", "\\"])
             case ")":
-                add_tokens(instructions, [Tokens.unquote ,"/"])
+                add_tokens(instructions, [Tokens.unquote, "/"])
             case _:
                 if quote > 0:
                     stack.append(instr)
@@ -74,30 +70,34 @@ def interprete(instructions: list, stack: list, context):
                     stack = trace.pop()
                 elif instr.startswith("$"):
                     instr = instr[1:]
-                    assert len(instr)>0
+                    assert len(instr) > 0
                     assert instr not in funcs
                     context[instr] = stack.pop()
                 elif instr.startswith("'"):
                     instr = instr[1:]
-                    if len(instr) == 0: stack.append([])
-                    else: stack.append([ instr ])
+                    if len(instr) == 0:
+                        stack.append([])
+                    else:
+                        stack.append([instr])
                 elif instr in context:
                     func = context[instr]
-                    interprete(copy.deepcopy(func), stack, copy.deepcopy(context))
-                elif instr =="!":
+                    interpret(copy.deepcopy(func), stack, copy.deepcopy(context))
+                elif instr == "!":
                     func = stack.pop()
-                    interprete(copy.deepcopy(func), stack, copy.deepcopy(context))
+                    interpret(copy.deepcopy(func), stack, copy.deepcopy(context))
                 elif instr in funcs:
                     argc, _, action = funcs[instr]
                     args = stack[-argc:] if argc > 0 else []
                     res = action(*args)
                     if argc > 0: del stack[-argc:]
-                    
+
                     stack += res
-        
-                else: stack.append(int(instr))
+
+                else:
+                    stack.append(int(instr))
 
     return stack, context
+
 
 name = sys.argv[1] if len(sys.argv) > 1 else "example.lang"
 
@@ -106,14 +106,12 @@ with open(name, "r") as f:
 
     context = {}
     for line in content:
-        if len(line.strip())==0: continue
-        
+        if len(line.strip()) == 0: continue
+
         # print(line)
 
         if line.startswith("#"): continue
-        print([key for key in context.keys()])
+        # print([key for key in context.keys()])
         tokens = line.split(" ")
-        res, context = interprete(tokens, [], copy.deepcopy(context))
+        res, context = interpret(tokens, [], copy.deepcopy(context))
         if len(res) > 0: print(res)
-        
-
