@@ -24,11 +24,11 @@ def typecheck(program: Iterable[FunctionType]):
         for expected, actual in zip(func.in_type, stack_top):
             if isinstance(expected, Generic):
                 if expected in generics and generics[expected] != actual:
-                    raise TypecheckException("mismatched types")
+                    raise TypecheckException(f"Mismatched types: expected: {generics[expected]}, was: {actual}")
                 generics[expected] = actual
             else:
                 if expected != actual:
-                    raise TypecheckException("mismatched types")
+                    raise TypecheckException(f"Mismatched types: expected: {expected}, was: {actual}")
 
         del stack[-func.argc:]
 

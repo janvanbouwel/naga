@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from src.Expression import Function
+from src.functions.Function import Function
 from src.Value import Value
 
 

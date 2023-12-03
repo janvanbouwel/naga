@@ -27,14 +27,12 @@ class FunctionType(Type):
         return f"{repr(self.in_type)}->{repr(self.out_type)}"
 
 
-class BaseTypes:
-    Bool = BaseType("Bool")
-    Int = BaseType("Int")
-
-
 @dataclass(eq=False, frozen=True)
 class Generic(Type):
     name: str
+
+    def __repr__(self):
+        return f"Gen({self.name})"
 
     def __copy__(self):
         return self

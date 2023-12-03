@@ -1,19 +1,20 @@
 from collections.abc import Iterable
 
-from src.functions.Builtins import builtin_functions
-from src.functions.Numbers import int_literal
+from src.functions import Numbers, Builtins, Boolean
 
 
 class ParseException(SystemExit):
     pass
 
 
+parsers = [Numbers.parse, Builtins.parse, Boolean.parse]
+
+
 def lex(tokens: Iterable[str]):
     for token in tokens:
-        try:
-            if token in builtin_functions:
-                yield builtin_functions[token]
-            else:
-                yield int_literal(int(token))
-        except (Exception, ValueError):
+        for parser in parsers:
+            if (val := parser(token)) is not None:
+                yield val
+                break
+        else:
             raise ParseException(f"Failed to parse token: {token}")
