@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
-from src.types.Types import Type, FunctionType, Generic
+from .FunctionType import FunctionType
+from .Types import Type, Generic
 
 
 class TypecheckException(SystemExit):
@@ -9,9 +10,10 @@ class TypecheckException(SystemExit):
 
 def typecheck(program: Iterable[FunctionType]):
     stack: list[Type] = []
+
     for func in program:
         if func.argc == 0:
-            stack += func.out_type
+            stack = stack + func.out_type
             continue
 
         stack_top = stack[-func.argc:]
@@ -30,9 +32,6 @@ def typecheck(program: Iterable[FunctionType]):
                 if expected != actual:
                     raise TypecheckException(f"Mismatched types: expected: {expected}, was: {actual}")
 
-        del stack[-func.argc:]
-
-        for out in func.out_type:
-            stack.append(generics[out] if out in generics else out)
+        stack = stack[:-func.argc] + [generics[out] if out in generics else out for out in func.out_type]
 
     return True

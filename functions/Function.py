@@ -1,8 +1,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from src.Value import Value
-from src.types.Types import FunctionType
+from Value import Value
+from type.FunctionType import FunctionType
 
 
 @dataclass(frozen=True)
@@ -16,4 +16,4 @@ class Function(Value):
         return self.type.argc
 
     def __repr__(self):
-        return f"F({repr(self.type)})"
+        return f"{repr(self.type)}"

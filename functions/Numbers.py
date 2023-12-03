@@ -1,6 +1,7 @@
-from src.functions.Function import Function
-from src.Value import Value
-from src.types.Types import FunctionType, BaseType
+from Value import Value
+from functions.Function import Function
+from type.FunctionType import FunctionType
+from type.Types import BaseType
 
 Int = BaseType("Int")
 

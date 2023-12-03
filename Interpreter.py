@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
-from src.functions.Function import Function
-from src.Value import Value
+from Value import Value
+from functions.Function import Function
 
 
 def interpret(program: Iterable[Function]):

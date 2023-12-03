@@ -1,7 +1,7 @@
-from src.Interpreter import interpret
-from src.Lexer import lex
-from src.Tokenizer import tokenize
-from src.types.Typechecker import typecheck
+from Interpreter import interpret
+from Parser import parse
+from Tokenizer import tokenize
+from type.Typechecker import typecheck
 
 with open("test.lang") as f:
     tokens = [t for t in tokenize(f)]
@@ -9,7 +9,7 @@ with open("test.lang") as f:
         print(token, end=" ")
     print()
 
-    program = [i for i in lex(tokens)]
+    program = [i for i in parse(tokens)]
     print(program)
 
     typecheck(map(lambda x: x.type, program))

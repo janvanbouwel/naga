@@ -1,7 +1,7 @@
 import copy
 import sys
 
-from src.types.Types import Generic
+from type.Types import Generic
 
 
 class Tokens:
