@@ -1,26 +1,37 @@
+from collections.abc import Callable
+
 from Value import Value
 from functions.Function import Function
-from type.FunctionType import FunctionType
+from type.FunctionType import FT
 from type.Types import BaseType
 
 Int = BaseType("Int")
 
 
+def int_value(value: int):
+    return Value(Int, value)
+
+
 def int_literal(value: int):
-    return Function(FunctionType([], [Int]), lambda _: [Value(Int, value)])
+    return Function(FT.new([], [Int]), lambda stack: stack.append(Value(Int, value)))
 
 
-def add(x: Value, y: Value):
-    return [Value(Int, x.value + y.value)]
+def create_op_func(op: Callable[[int, int], int]):
+    def op_func(stack):
+        [x, y] = stack[-2:]
+        del stack[-2:]
+        stack.append(int_value(op(x.value, y.value)))
+
+    return Function(MathFunctionType, op_func)
 
 
-MathFunctionType = FunctionType([Int, Int], [Int])
-
-add_function = Function(MathFunctionType, lambda x: add(*x))
+MathFunctionType = FT.new([Int, Int], [Int])
 
 builtin_functions = {
-    "+": add_function
-}
+    "+": create_op_func(lambda x, y: x + y),
+    "-": create_op_func(lambda x, y: x - y),
+    "*": create_op_func(lambda x, y: x * y),
+    "/": create_op_func(lambda x, y: x / y)}
 
 
 def parse(token: str):

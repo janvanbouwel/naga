@@ -1,7 +1,7 @@
 import copy
 import sys
 
-from type.Types import Generic
+from type.Generics import Generic
 
 
 class Tokens:
@@ -15,7 +15,8 @@ def add_tokens(tokens: list, add: list):
 
 
 def assertion(x):
-    if not x: raise Exception("Assertion failed")
+    if not x:
+        raise Exception("Assertion failed")
 
 
 funcs = {
@@ -31,7 +32,7 @@ funcs = {
     "assert": (1, 0, lambda x: [assertion(x), []][-1]),
     "pop": (1, 2, lambda lst: [lst, lst.pop()]),
     "push": (2, 1, lambda lst, val: [lst.append(val), [lst]][-1]),
-    "out": (1, 1, lambda lst: [lst[0]])
+    "out": (1, 1, lambda lst: [lst[0]]),
 }
 
 
@@ -49,11 +50,13 @@ def interpret(instructions: list, stack: list, context):
             case [*a]:
                 stack.append(instr)
             case Tokens.quote:
-                if quote > 0: stack.append(Tokens.quote)
+                if quote > 0:
+                    stack.append(Tokens.quote)
                 quote += 1
             case Tokens.unquote:
                 quote -= 1
-                if quote > 0: stack.append(Tokens.unquote)
+                if quote > 0:
+                    stack.append(Tokens.unquote)
             case "(":
                 add_tokens(instructions, ["[", Tokens.quote])
             case "[":
@@ -89,7 +92,8 @@ def interpret(instructions: list, stack: list, context):
                     argc, _, action = funcs[instr]
                     args = stack[-argc:] if argc > 0 else []
                     res = action(*args)
-                    if argc > 0: del stack[-argc:]
+                    if argc > 0:
+                        del stack[-argc:]
 
                     stack += res
 
@@ -106,12 +110,15 @@ with open(name, "r") as f:
 
     context = {}
     for line in content:
-        if len(line.strip()) == 0: continue
+        if len(line.strip()) == 0:
+            continue
 
         # print(line)
 
-        if line.startswith("#"): continue
+        if line.startswith("#"):
+            continue
         # print([key for key in context.keys()])
         tokens = line.split(" ")
         res, context = interpret(tokens, [], copy.deepcopy(context))
-        if len(res) > 0: print(res)
+        if len(res) > 0:
+            print(res)

@@ -9,11 +9,7 @@ from type.FunctionType import FunctionType
 class Function(Value):
     type: FunctionType
 
-    value: Callable[[list[Value]], list[Value]]
-
-    @property
-    def argc(self):
-        return self.type.argc
+    value: Callable[[list[Value]], None]
 
     def __repr__(self):
         return f"{repr(self.type)}"

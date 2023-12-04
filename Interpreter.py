@@ -8,10 +8,6 @@ def interpret(program: Iterable[Function]):
     stack: list[Value] = []
 
     for func in program:
-        args = []
-        if func.argc > 0:
-            args = stack[-func.argc:]
-            del stack[-func.argc:]
-        stack += func.value(args)
+        func.value(stack)
 
     return stack

@@ -1,14 +1,14 @@
+from __future__ import annotations
+
+from abc import abstractmethod, ABC
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True, eq=False)
-class Type:
-    pass
-
-
-@dataclass(frozen=True, eq=True)
-class StackType(Type):
-    pass
+class Type(ABC):
+    @abstractmethod
+    def match(self, other: Type, binding: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
+        pass
 
 
 @dataclass(frozen=True)
@@ -18,16 +18,5 @@ class BaseType(Type):
     def __repr__(self):
         return self.name
 
-
-@dataclass(eq=False, frozen=True)
-class Generic(Type):
-    name: str
-
-    def __repr__(self):
-        return f"Gen({self.name})"
-
-    def __copy__(self):
-        return self
-
-    def __deepcopy__(self, _):
-        return self
+    def match(self, other: Type, binding: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
+        return self == other, binding

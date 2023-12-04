@@ -1,7 +1,8 @@
 from collections.abc import Iterable
 
 from .FunctionType import FunctionType
-from .Types import Type, Generic
+from .StackType import StackType, EmptyStack
+from .Types import Type
 
 
 class TypecheckException(SystemExit):
@@ -9,29 +10,35 @@ class TypecheckException(SystemExit):
 
 
 def typecheck(program: Iterable[FunctionType]):
-    stack: list[Type] = []
+    stack: StackType = StackType.new([])
 
     for func in program:
-        if func.argc == 0:
-            stack = stack + func.out_type
-            continue
+        in_type = func.in_type
+        out_type = func.out_type
 
-        stack_top = stack[-func.argc:]
-        if len(stack_top) != func.argc:
-            raise TypecheckException(f"Typechecking failed: top of stack: {stack_top}, func_in: {func.in_type}")
+        binding: dict[Type, Type] = {}
+        while not isinstance(in_type, EmptyStack):
+            if in_type in binding:
+                in_type = binding[in_type]
+                continue
 
-        combined = zip(func.in_type, stack_top)
-        generics: dict[Type, Type] = {}
+            if len(stack) == 0:
+                raise TypecheckException("Insufficient items on stack.")
 
-        for expected, actual in zip(func.in_type, stack_top):
-            if isinstance(expected, Generic):
-                if expected in generics and generics[expected] != actual:
-                    raise TypecheckException(f"Mismatched types: expected: {generics[expected]}, was: {actual}")
-                generics[expected] = actual
-            else:
-                if expected != actual:
-                    raise TypecheckException(f"Mismatched types: expected: {expected}, was: {actual}")
+            stack, stack_top = stack.pop()
+            in_type, expected = in_type.pop()
 
-        stack = stack[:-func.argc] + [generics[out] if out in generics else out for out in func.out_type]
+            res, binding = expected.match(stack_top, binding)
+            if not res:
+                raise TypecheckException(f"Mismatched types: expected: {expected}, was: {str(stack_top)}")
+
+        while not isinstance(out_type, EmptyStack):
+            if out_type in binding:
+                out_type = binding[out_type]
+                continue
+
+            out_type, out = out_type.pop()
+
+            stack = stack.append(binding[out] if out in binding else out)
 
     return True

@@ -10,7 +10,7 @@ with open("test.lang") as f:
     print()
 
     program = [i for i in parse(tokens)]
-    print(program)
+    print(f"program: {program}")
 
     typecheck(map(lambda x: x.type, program))
 
