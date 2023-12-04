@@ -1,7 +1,7 @@
+from Compiler import Compiler
 from Interpreter import interpret
 from Parser import parse
 from Tokenizer import tokenize
-from type.Typechecker import typecheck
 
 with open("test.lang") as f:
     tokens = [t for t in tokenize(f)]
@@ -9,9 +9,11 @@ with open("test.lang") as f:
         print(token, end=" ")
     print()
 
-    program = [i for i in parse(tokens)]
-    print(f"program: {program}")
+    ir = [i for i in parse(tokens)]
+    print(f"IR: {ir}")
 
-    typecheck(map(lambda x: x.type, program))
+    compiler = Compiler()
+    program = list(compiler.compile(ir))
+    print(f"Resulting stack type: {compiler.stack}")
 
     print(interpret(program))

@@ -4,10 +4,10 @@ from Value import Value
 from functions.Function import Function
 
 
-def interpret(program: Iterable[Function]):
-    stack: list[Value] = []
+def interpret(program: Iterable):
+    stack = []
 
     for func in program:
-        func.value(stack)
+        func(stack)
 
     return stack

@@ -7,9 +7,9 @@ from type.FunctionType import FT
 from type.Generics import Generic, GenStack
 
 
-def app_exec(stack: list[Value]):
+def app_exec(stack: list):
     func = stack.pop()
-    func.value(stack)
+    func(stack)
 
 
 def app_func():
