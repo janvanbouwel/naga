@@ -14,6 +14,8 @@ class StackException(Exception):
 
 @dataclass(frozen=True)
 class StackType(Type, Sized, ABC, Iterable):
+    empty = False
+
     @staticmethod
     def new(types: list[Type]) -> StackType:
         stack = EmptyStack()
@@ -24,7 +26,11 @@ class StackType(Type, Sized, ABC, Iterable):
     def append(self, t: Type) -> StackType:
         return ConsStack(t, self)
 
-    def pop(self):
+    @abstractmethod
+    def prepend(self, t: Type) -> StackType:
+        pass
+
+    def pop(self) -> tuple[StackType, Type]:
         raise StackException("Can't pop empty stack")
 
     def __iter__(self) -> Iterator[StackType]:
@@ -53,6 +59,11 @@ class StackType(Type, Sized, ABC, Iterable):
 
 @dataclass(frozen=True)
 class EmptyStack(StackType):
+    def prepend(self, t: Type) -> StackType:
+        return ConsStack(t, self)
+
+    empty = True
+
     def present(self) -> str:
         return ""
 
@@ -60,13 +71,16 @@ class EmptyStack(StackType):
         return 0
 
     def match(
-            self, other: Type, binding: dict[Type, Type]
+            self, other: Type, generics: dict[Type, Type]
     ) -> tuple[bool, dict[Type, Type]]:
-        return (self == other), binding
+        return (self == other), generics
 
 
 @dataclass(frozen=True)
 class ConsStack(StackType):
+    def prepend(self, t: Type) -> StackType:
+        return ConsStack(self.type, self.prev.prepend(t))
+
     def present(self) -> str:
         return str(self.type)
 
@@ -80,13 +94,13 @@ class ConsStack(StackType):
         return self.prev, self.type
 
     def match(
-            self, other: Type, binding: dict[Type, Type]
+            self, other: Type, generics: dict[Type, Type]
     ) -> tuple[bool, dict[Type, Type]]:
         if not isinstance(other, ConsStack):
-            return False, binding
+            return False, generics
 
-        res, binding = self.type.match(other.type, binding)
+        res, generics = self.type.match(other.type, generics)
         if not res:
-            return False, binding
+            return False, generics
 
-        return self.prev.match(other.prev, binding)
+        return self.prev.match(other.prev, generics)

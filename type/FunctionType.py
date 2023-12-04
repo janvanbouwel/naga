@@ -12,15 +12,15 @@ class FunctionType(Type):
     def __repr__(self):
         return f"F({str(self.in_type)}->{str(self.out_type)})"
 
-    def match(self, other: Type, binding: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
+    def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         if not isinstance(other, FunctionType):
-            return False, binding
+            return False, generics
 
-        res, binding = self.in_type.match(other.in_type, binding)
+        res, generics = self.in_type.match(other.in_type, generics)
         if not res:
-            return False, binding
+            return False, generics
 
-        return self.out_type.match(other.out_type, binding)
+        return self.out_type.match(other.out_type, generics)
 
     @staticmethod
     def new(in_type: list[Type], out_type: list[Type]):

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True, eq=False)
 class Type(ABC):
     @abstractmethod
-    def match(self, other: Type, binding: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
+    def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         pass
 
 
@@ -18,5 +18,5 @@ class BaseType(Type):
     def __repr__(self):
         return self.name
 
-    def match(self, other: Type, binding: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
-        return self == other, binding
+    def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
+        return self == other, generics

@@ -1,5 +1,5 @@
 from type.FunctionType import FunctionType
-from type.StackType import StackType, EmptyStack
+from type.StackType import StackType
 from type.Types import Type
 
 
@@ -7,33 +7,38 @@ class TypecheckException(SystemExit):
     pass
 
 
-def typecheck(stack: StackType, func_type: FunctionType) -> StackType:
+def typecheck(stack: FunctionType, func_type: FunctionType) -> FunctionType:
+    stack_in = stack.in_type
+    current_stack = stack.out_type
+
     in_type = func_type.in_type
     out_type = func_type.out_type
 
-    binding: dict[Type, Type] = {}
-    while not isinstance(in_type, EmptyStack):
-        if in_type in binding:
-            in_type = binding[in_type]
+    generics: dict[Type, Type] = {}
+    while not in_type.empty:
+        if in_type in generics:
+            in_type = generics[in_type]
             continue
 
-        if len(stack) == 0:
-            raise TypecheckException("Insufficient items on stack.")
-
-        stack, stack_top = stack.pop()
         in_type, expected = in_type.pop()
 
-        res, binding = expected.match(stack_top, binding)
+        if current_stack.empty:
+            current_stack = current_stack.prepend(expected)
+            stack_in = stack_in.prepend(expected)
+
+        current_stack, stack_top = current_stack.pop()
+
+        res, generics = expected.match(stack_top, generics)
         if not res:
             raise TypecheckException(f"Mismatched types: expected: {expected}, was: {str(stack_top)}")
 
-    while not isinstance(out_type, EmptyStack):
-        if out_type in binding:
-            out_type = binding[out_type]
+    while not out_type.empty:
+        if out_type in generics:
+            out_type = generics[out_type]
             continue
 
         out_type, out = out_type.pop()
 
-        stack = stack.append(binding[out] if out in binding else out)
+        current_stack = current_stack.append(generics[out] if out in generics else out)
 
-    return stack
+    return FunctionType(stack_in, current_stack)

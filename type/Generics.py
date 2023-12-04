@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from type.StackType import StackType
-from type.Types import Type
+from .StackType import StackType, StackException
+from .Types import Type
 
 
 @dataclass(eq=False, frozen=True)
@@ -19,15 +19,18 @@ class Generic(Type):
     def __deepcopy__(self, _):
         return self
 
-    def match(self, other: Type, binding: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
-        if self in binding:
-            return binding[self].match(other, binding)
+    def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
+        if self in generics:
+            return generics[self].match(other, generics)
 
-        return True, binding | {self: other}
+        return True, generics | {self: other}
 
 
 @dataclass(eq=False, frozen=True)
 class GenStack(StackType):
+    def prepend(self, t: Type) -> StackType:
+        raise StackException("Idk yet what to do here if it is necessary")
+
     name: str
 
     def __len__(self):
@@ -52,11 +55,11 @@ class GenStack(StackType):
         return f"*{self.name}"
 
     def match(
-            self, other: Type, binding: dict[Type, Type]
+            self, other: Type, generics: dict[Type, Type]
     ) -> tuple[bool, dict[Type, Type]]:
-        if self in binding:
-            return binding[self].match(other, binding)
+        if self in generics:
+            return generics[self].match(other, generics)
         if not isinstance(other, StackType):
-            return False, binding
+            return False, generics
 
-        return True, binding | {self: other}
+        return True, generics | {self: other}
