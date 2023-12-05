@@ -4,8 +4,8 @@ from functions.Symbol import Symbol
 
 
 @dataclass(frozen=True)
-class Binding(Symbol):
-    name: str
+class Quote(Symbol):
+    symbol: Symbol
 
     def __repr__(self):
-        return f"${self.name}"
+        return f"'{self.symbol}"

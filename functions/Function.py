@@ -1,15 +1,22 @@
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from Value import Value
+from functions.Symbol import Symbol
+from type.InstructionType import InstructionType
 from type.FunctionType import FunctionType
 
 
 @dataclass(frozen=True)
-class Function(Value):
-    type: list[FunctionType]
+class Function(Symbol):
+    type: FunctionType
 
-    value: Callable[[list[Value]], None]
+    value: Callable[[list], None]
 
     def __repr__(self):
-        return f"{repr(self.type)}"
+        return f"{self.type}"
+
+    @staticmethod
+    def new(types: list[InstructionType], value: Function.value):
+        return Function(FunctionType(types), value)

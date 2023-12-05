@@ -1,30 +1,30 @@
 from dataclasses import dataclass
 
-from type.StackType import StackType
+from type.InstructionType import InstructionType
 from type.Types import Type
 
 
 @dataclass(frozen=True)
 class FunctionType(Type):
-    in_type: StackType
-    out_type: StackType
+    functions: list[InstructionType]
 
-    def __repr__(self):
-        return f"F({str(self.in_type)}->{str(self.out_type)})"
+    def __str__(self):
+        # if len(self.functions) == 1:
+        #     return str(self.functions[0])
+        # else:
+        return str(self.functions)
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
-        if not isinstance(other, FunctionType):
+        if len(self.functions) == 1:
+            if isinstance(other, InstructionType):
+                return self.functions[0].match(other, generics)
+
+        if not isinstance(other, FunctionType) or len(self.functions) != len(other.functions):
             return False, generics
 
-        res, generics = self.in_type.match(other.in_type, generics)
-        if not res:
-            return False, generics
+        for i1, i2 in zip(self.functions, other.functions):
+            res, generics = i1.match(i2, generics)
+            if not res:
+                return False, generics
 
-        return self.out_type.match(other.out_type, generics)
-
-    @staticmethod
-    def new(in_type: list[Type], out_type: list[Type]):
-        return FunctionType(StackType.new(in_type), StackType.new(out_type))
-
-
-FT = FunctionType
+        return True, generics

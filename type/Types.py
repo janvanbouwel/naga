@@ -10,6 +10,12 @@ class Type(ABC):
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         pass
 
+    def apply(self):
+        pass
+
+    def replace(self, generics: dict[Type, Type]) -> Type:
+        return self
+
 
 @dataclass(frozen=True)
 class BaseType(Type):
