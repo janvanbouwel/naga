@@ -13,7 +13,7 @@ def int_value(value: int):
 
 
 def int_literal(value: int):
-    return Function(FT.new([], [Int]), lambda stack: stack.append(int_value(value)))
+    return Function([FT.new([], [Int])], lambda stack: stack.append(int_value(value)))
 
 
 def create_op_func(op: Callable[[int, int], int]):
@@ -22,7 +22,7 @@ def create_op_func(op: Callable[[int, int], int]):
         del stack[-2:]
         stack.append(int_value(op(x.value, y.value)))
 
-    return Function(MathFunctionType, op_func)
+    return Function([MathFunctionType], op_func)
 
 
 MathFunctionType = FT.new([Int, Int], [Int])

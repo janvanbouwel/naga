@@ -6,13 +6,13 @@ from type.Typechecker import typecheck
 
 
 class Compiler:
-    stack: FunctionType
+    stack: list[FunctionType]
 
     def __init__(self):
-        self.stack = FunctionType.new([], [])
+        self.stack = [FunctionType.new([], [])]
 
     def compile(self, program: Iterable[Function]) -> list:
         for func in program:
-            func_type = func.type
-            self.stack = typecheck(self.stack, func_type)
+            for func_type in func.type:
+                self.stack += typecheck(self.stack.pop(), func_type)
             yield func.value

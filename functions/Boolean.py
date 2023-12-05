@@ -13,7 +13,7 @@ FALSE = Value(Bool, False)
 
 
 def bool_literal(value: bool):
-    return Function(FT.new([], [Bool]), lambda stack: stack.append(cast(value)))
+    return Function([FT.new([], [Bool])], lambda stack: stack.append(cast(value)))
 
 
 def cast(x):
@@ -29,7 +29,7 @@ def if_exec(stack):
 
 def if_func():
     gen = Generic("a")
-    return Function(FT.new([Bool, gen, gen], [gen]), if_exec)
+    return Function([FT.new([Bool, gen, gen], [gen])], if_exec)
 
 
 def eq_exec(stack: list):
@@ -38,7 +38,7 @@ def eq_exec(stack: list):
 
 def eq_func():
     gen = Generic("a")
-    return Function(FT.new([gen, gen], [Bool]), eq_exec)
+    return Function([FT.new([gen, gen], [Bool])], eq_exec)
 
 
 builtin_functions: dict[str, Callable[[], Function]] = {

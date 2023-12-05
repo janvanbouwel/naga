@@ -54,9 +54,7 @@ class GenStack(StackType):
     def present(self) -> str:
         return f"*{self.name}"
 
-    def match(
-            self, other: Type, generics: dict[Type, Type]
-    ) -> tuple[bool, dict[Type, Type]]:
+    def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         if self in generics:
             return generics[self].match(other, generics)
         if not isinstance(other, StackType):

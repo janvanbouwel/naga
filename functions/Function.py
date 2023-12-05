@@ -7,7 +7,7 @@ from type.FunctionType import FunctionType
 
 @dataclass(frozen=True)
 class Function(Value):
-    type: FunctionType
+    type: list[FunctionType]
 
     value: Callable[[list[Value]], None]
 

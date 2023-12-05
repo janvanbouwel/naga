@@ -14,7 +14,7 @@ parsers = [Numbers.parse, Builtins.parse, Boolean.parse, Array.parse]
 
 
 def quote(func: Function) -> Function:
-    return Function(FT.new([], [func.type]), lambda stack: stack.append(func.value))
+    return Function([FT.new([], [t]) for t in func.type], lambda stack: stack.append(func.value))
 
 
 def parse_one(token: str) -> Function:

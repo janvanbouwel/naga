@@ -49,6 +49,12 @@ class StackType(Type, Sized, ABC, Iterable):
 
         return iter(gen())
 
+    def concat(self, other: StackType) -> StackType:
+        stack = self
+        for t in reversed(list(iter(other))):
+            stack = stack.append(t)
+        return stack
+
     def __str__(self):
         return f"[{', '.join(s.present() for s in reversed(list(iter(self))))}]"
 

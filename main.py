@@ -15,7 +15,7 @@ with open("test.lang") as f:
     compiler = Compiler()
     program = list(compiler.compile(ir))
     print(f"Resulting stack type: {compiler.stack}")
-    if not compiler.stack.in_type.empty:
+    if len(compiler.stack) != 1 or not compiler.stack[0].in_type.empty:
         raise Exception("Program expects non-empty stack")
 
     print(interpret(program))

@@ -16,12 +16,12 @@ def app_func():
     gen_stack_a = GenStack("a")
     gen_stack_b = GenStack("b")
 
-    return Function(FT(gen_stack_a.append(FT(gen_stack_a, gen_stack_b)), gen_stack_b), app_exec)
+    return Function([FT(gen_stack_a.append(FT(gen_stack_a, gen_stack_b)), gen_stack_b)], app_exec)
 
 
 def id_func():
     gen = Generic("a")
-    return Function(FT.new([gen], [gen]), lambda x: None)
+    return Function([FT.new([gen], [gen])], lambda x: None)
 
 
 def dup_exec(stack: list):
@@ -30,13 +30,14 @@ def dup_exec(stack: list):
 
 def dup_func():
     gen = Generic("a")
-    return Function(FT.new([gen], [gen, gen]), dup_exec)
+    return Function([FT.new([gen], [gen, gen])], dup_exec)
 
 
 builtin_functions: dict[str, Callable[[], Function]] = {
     "!": app_func,
     "id": id_func,
-    "dup": dup_func
+    "dup": dup_func,
+    "nop": lambda: Function([FT.new([],[])], lambda x: x)
 }
 
 
