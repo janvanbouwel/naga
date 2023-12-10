@@ -15,6 +15,8 @@ class FunctionType(Type):
         return super().__repr__()
 
     def show(self, printer: GenericPrinter):
+        if len(self.functions) == 1:
+            return f"F:{self.functions[0].show(printer)}"
         return f"[{','.join(func.show(printer) for func in self.functions)}]"
 
     def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> FunctionType:

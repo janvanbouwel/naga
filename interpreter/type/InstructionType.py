@@ -7,6 +7,8 @@ from type.StackType import StackType
 from type.Types import Type
 
 
+# TODO create abstract instruction for generic function to inherit from (or as functiontype maybe)
+
 @dataclass(frozen=True)
 class InstructionType(Type):
     in_type: StackType

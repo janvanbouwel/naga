@@ -45,7 +45,10 @@ class TypeChecker:
                     in_type = generics[in_type]
                     continue
                 else:
-                    raise TypecheckException("Unbound generic stack")
+                    ret.append(InstructionType(stack_in, stack))
+                    stack_in = StackType.new([])
+                    stack = StackType.new([])
+                    # raise TypecheckException("Unbound generic stack")
 
             if isinstance(stack, GenericStack):
                 ret.append(InstructionType(stack_in, stack))

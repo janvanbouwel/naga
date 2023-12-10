@@ -84,7 +84,7 @@ class GenericStack(StackType):
     def __hash__(self):
         return id(self)
 
-    def show(self, printer: GenericPrinter) -> str:
+    def _show(self, printer: GenericPrinter) -> str:
         return f"*{printer.get_name(self)}"
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:

@@ -5,7 +5,7 @@ from functions.Module import Module
 from type.InstructionType import FT
 from type.Types import BaseType
 
-Number = BaseType("Number")
+Number = BaseType("Num")
 
 
 def float_value(value: float):

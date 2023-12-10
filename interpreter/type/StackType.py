@@ -26,6 +26,13 @@ class StackType(Type, ABC, Iterable):
     def append(self, t: Type) -> StackType:
         return ConsStack(t, self)
 
+    def show(self, printer: GenericPrinter):
+        return f"[{self._show(printer)}]"
+
+    @abstractmethod
+    def _show(self, printer: GenericPrinter):
+        pass
+
     @abstractmethod
     def prepend(self, t: Type) -> StackType:
         pass
@@ -69,7 +76,7 @@ class EmptyStack(StackType):
     def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> StackType:
         return self
 
-    def show(self, printer: GenericPrinter):
+    def _show(self, printer: GenericPrinter):
         return ""
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
@@ -81,10 +88,10 @@ class ConsStack(StackType):
     def prepend(self, t: Type) -> StackType:
         return ConsStack(self.type, self.prev.prepend(t))
 
-    def show(self, printer: GenericPrinter):
+    def _show(self, printer: GenericPrinter):
         if self.prev.empty:
             return self.type.show(printer)
-        return f"{self.prev.show(printer)}, {self.type.show(printer)}"
+        return f"{self.prev._show(printer)}, {self.type.show(printer)}"
 
     type: Type
     prev: StackType
