@@ -64,12 +64,12 @@ class TypeChecker:
             if not res:
                 raise TypecheckException(f"Mismatched types: expected: {expected}, was: {str(stack_top)}")
 
-        stack = stack.concat(func_type.out_type.replace(generics))
+        stack = stack.concat(func_type.out_type.replace(generics, self.context))
 
         if isinstance(func_type, BindingType):
             if func_type.name in self.context:
                 raise TypecheckException(f"Can't bind name {func_type.name} multiple times")
             self.context[func_type.name] = FunctionType(
-                [func_type.binds.replace(generics)])
+                [func_type.binds.replace(generics, self.context)])
 
         return ret + [InstructionType(stack_in, stack)]

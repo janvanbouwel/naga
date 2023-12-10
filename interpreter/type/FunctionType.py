@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from type.GenericPrinter import GenericPrinter
@@ -9,8 +11,14 @@ from type.Types import Type
 class FunctionType(Type):
     functions: list[InstructionType]
 
+    def __repr__(self):
+        return super().__repr__()
+
     def show(self, printer: GenericPrinter):
         return f"[{','.join(func.show(printer) for func in self.functions)}]"
+
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> FunctionType:
+        return FunctionType([instr.replace(generics, context) for instr in self.functions])
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         if len(self.functions) == 1:

@@ -1,4 +1,6 @@
-from tree_sitter import Tree, Node
+from collections import ChainMap
+
+from tree_sitter import Node
 
 from Language.Typechecker import TypeChecker
 from functions.Function import Function
@@ -18,11 +20,14 @@ class CompilerException(Exception):
 
 class Compiler:
     typechecker: TypeChecker
-    runtime_context: dict
+    runtime_context: ChainMap
 
-    def __init__(self):
+    def __init__(self, runtime_context: ChainMap = None):
         self.typechecker = TypeChecker()
-        self.runtime_context = {}
+        if runtime_context is None:
+            self.runtime_context = ChainMap()
+        else:
+            self.runtime_context = runtime_context.new_child()
 
     @staticmethod
     def resolve_function_name(context: Module.context, name: str) -> Function:
@@ -45,6 +50,16 @@ class Compiler:
             (lambda stack: self.runtime_context.setdefault(name, stack.pop()))
         )
 
+    def create_function(self, context: Module.context, program: Node) -> Function:
+        compiler = Compiler(self.runtime_context)
+        body = list(compiler.compile_program(context, program))
+
+        def run(stack: list):
+            for func in body:
+                func(stack)
+
+        return Function(compiler.typechecker.stack, run)
+
     def compile_node(self, context: Module.context, node: Node) -> Function | None:
         match node.type:
             case "identifier":
@@ -56,6 +71,11 @@ class Compiler:
                 if expression is None:
                     return self.create_quote(context, self.resolve_function_name(context, "id"))
                 return self.create_quote(context, self.compile_node(context, node.child_by_field_name("expression")))
+            case "function_definition":
+                body = node.child_by_field_name("body")
+                if body is None:
+                    return self.create_quote(context, self.resolve_function_name(context, "id"))
+                return self.create_quote(context, self.create_function(context, body))
             case "number":
                 return number_literal(node.text)
             case "true":
@@ -67,11 +87,10 @@ class Compiler:
             case _:
                 raise CompilerException(f"Unhandled case {node}")
 
-    def compile_program(self, context: Module.context, tree: Tree):
-        root = tree.root_node
-        if root.type != "program":
+    def compile_program(self, context: Module.context, program: Node):
+        if program.type != "program":
             raise CompilerException("Can only compile a program")
-        for node in root.children:
+        for node in program.children:
             func = self.compile_node(context, node)
             if func is None:
                 continue

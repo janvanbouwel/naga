@@ -31,7 +31,7 @@ with open("test.lang", "rb") as f:
         context |= module.built_in()
 
     compiler = Compiler()
-    program = list(compiler.compile_program(context, tree))
+    program = list(compiler.compile_program(context, tree.root_node))
     print(f"Resulting stack type: {compiler.stack}")
     if len(compiler.stack.functions) != 1 or not compiler.stack.functions[0].in_type.empty:
         raise Exception("Program expects non-empty stack")

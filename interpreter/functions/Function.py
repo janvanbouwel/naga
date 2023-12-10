@@ -13,9 +13,6 @@ class Function:
 
     value: Callable[[list], None]
 
-    def __repr__(self):
-        return f"{self.type}"
-
     @staticmethod
     def new(types: list[InstructionType], value: Function.value):
         return Function(FunctionType(types), value)

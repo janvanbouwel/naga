@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Generator, Iterator
@@ -29,6 +28,10 @@ class StackType(Type, ABC, Iterable):
 
     @abstractmethod
     def prepend(self, t: Type) -> StackType:
+        pass
+
+    @abstractmethod
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> StackType:
         pass
 
     def pop(self) -> tuple[StackType, Type]:
@@ -63,6 +66,9 @@ class EmptyStack(StackType):
 
     empty = True
 
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> StackType:
+        return self
+
     def show(self, printer: GenericPrinter):
         return ""
 
@@ -96,5 +102,5 @@ class ConsStack(StackType):
 
         return self.prev.match(other.prev, generics)
 
-    def replace(self, generics: dict[Type, Type]) -> Type:
-        return ConsStack(self.type.replace(generics), self.prev.replace(generics))
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> StackType:
+        return ConsStack(self.type.replace(generics, context), self.prev.replace(generics, context))

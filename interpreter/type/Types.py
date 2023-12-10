@@ -15,10 +15,14 @@ class Type(ABC):
     def apply(self):
         pass
 
-    def replace(self, generics: dict[Type, Type]) -> Type:
-        return self
+    @abstractmethod
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> Type:
+        pass
 
     def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
         return self.show(GenericPrinter())
 
     @abstractmethod
@@ -30,8 +34,8 @@ class Type(ABC):
 class BaseType(Type):
     name: str
 
-    def __repr__(self):
-        return self.name
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> Type:
+        return self
 
     def show(self, printer: GenericPrinter):
         return self.name

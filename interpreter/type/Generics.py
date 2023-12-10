@@ -26,7 +26,7 @@ class Generic(Type):
 
         return True, generics | {self: other}
 
-    def replace(self, generics: dict[Type, Type]) -> Type:
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> Type:
         if self in generics:
             return generics[self]
         return self
@@ -55,12 +55,12 @@ class GenericFunction(InstructionType):
             return True, generics | {self: other}
         return super().match(other, generics)
 
-    def replace(self, generics: dict[Type, Type]) -> Type:
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> Type:
         if self in generics:
             return generics[self]
 
-        in_type = self.in_type.replace(generics)
-        out_type = self.out_type.replace(generics)
+        in_type = self.in_type.replace(generics, context)
+        out_type = self.out_type.replace(generics, context)
 
         if isinstance(in_type, GenericStack) or isinstance(out_type, GenericStack):
             return GenericFunction(in_type, out_type)
@@ -95,7 +95,7 @@ class GenericStack(StackType):
 
         return True, generics | {self: other}
 
-    def replace(self, generics: dict[Type, Type]) -> Type:
+    def replace(self, generics: dict[Type, Type], context: dict[str, Type]) -> Type:
         if self in generics:
-            return generics[self]
+            return generics[self].replace(generics, context)
         return self
