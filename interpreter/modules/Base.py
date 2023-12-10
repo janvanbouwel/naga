@@ -3,9 +3,8 @@ from collections.abc import Callable
 
 from functions.Function import Function
 from functions.Module import Module
-from functions.Symbol import Symbol
+from type.Generics import Generic, GenericFunction
 from type.InstructionType import FT
-from type.Generics import Generic, GenericStack, GenericFunction
 
 
 def app_exec(stack: list):
@@ -14,13 +13,13 @@ def app_exec(stack: list):
 
 
 def app_func():
-    func = GenericFunction.new("a")
+    func = GenericFunction.new()
 
     return Function.new([FT(func.in_type.append(func), func.out_type)], app_exec)
 
 
 def id_func():
-    gen = Generic("a")
+    gen = Generic()
     return Function.new([FT.new([gen], [gen])], lambda x: None)
 
 
@@ -29,15 +28,11 @@ def dup_exec(stack: list):
 
 
 def dup_func():
-    gen = Generic("a")
+    gen = Generic()
     return Function.new([FT.new([gen], [gen, gen])], dup_exec)
 
 
 class Base(Module):
-
-    @staticmethod
-    def parse(token: str) -> Symbol:
-        pass
 
     @staticmethod
     def built_in() -> dict[str, Callable[[], Function]]:

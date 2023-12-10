@@ -1,8 +1,9 @@
-'id $a 5 a
+# 'id $a 5 a 'id ! 1 = FALSE = 1 2 ?
 # ! dup
 # 5 4 1 1 = '+ '- ? !
 #'+ '- ?
 # 1 'id ! 1 = FALSE = 1 2 ?
 # '+ !
 # 1 id
-# !
+# FALSE TRUE = FALSE = 5 1 ?
+= ' ' ?

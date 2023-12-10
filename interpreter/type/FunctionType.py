@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from type.GenericPrinter import GenericPrinter
 from type.InstructionType import InstructionType
 from type.Types import Type
 
@@ -8,11 +9,8 @@ from type.Types import Type
 class FunctionType(Type):
     functions: list[InstructionType]
 
-    def __str__(self):
-        # if len(self.functions) == 1:
-        #     return str(self.functions[0])
-        # else:
-        return str(self.functions)
+    def show(self, printer: GenericPrinter):
+        return f"[{','.join(func.show(printer) for func in self.functions)}]"
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         if len(self.functions) == 1:

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from type.GenericPrinter import GenericPrinter
 from type.StackType import StackType
 from type.Types import Type
 
@@ -13,6 +14,11 @@ class InstructionType(Type):
         if self.in_type.empty:
             return f"C{self.out_type}"
         return f"I({str(self.in_type)}->{str(self.out_type)})"
+
+    def show(self, printer: GenericPrinter):
+        if self.in_type.empty:
+            return f"C{self.out_type.show(printer)}"
+        return f"I({self.in_type.show(printer)}->{self.out_type.show(printer)})"
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         if not isinstance(other, InstructionType):

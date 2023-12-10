@@ -2,44 +2,38 @@ from collections.abc import Callable
 
 from functions.Function import Function
 from functions.Module import Module
-from functions.Symbol import Symbol
 from type.InstructionType import FT
 from type.Types import BaseType
 
-Int = BaseType("Int")
+Number = BaseType("Number")
 
 
-def int_value(value: int):
+def float_value(value: float):
     return value
 
 
-def extract_value(value) -> int:
+def extract_value(value) -> float:
     return value
 
 
-def int_literal(value: int):
-    return Function.new([FT.new([], [Int])], lambda stack: stack.append(int_value(value)))
+def number_literal(text: bytes):
+    value = float(text.decode())
+    return Function.new([FT.new([], [Number])], lambda stack: stack.append(float_value(value)))
 
 
-def create_op_func(op: Callable[[int, int], int]):
+def create_op_func(op: Callable[[float, float], float]):
     def op_func(stack):
         [x, y] = stack[-2:]
         del stack[-2:]
-        stack.append(int_value(op(extract_value(x), extract_value(y))))
+        stack.append(float_value(op(extract_value(x), extract_value(y))))
 
     return Function.new([MathFunctionType], op_func)
 
 
-MathFunctionType = FT.new([Int, Int], [Int])
+MathFunctionType = FT.new([Number, Number], [Number])
 
 
-class Number(Module):
-    @staticmethod
-    def parse(token: str) -> Symbol:
-        try:
-            return int_literal(int(token))
-        except ValueError:
-            pass
+class Numbers(Module):
 
     @staticmethod
     def built_in() -> dict[str, Callable[[], Function]]:

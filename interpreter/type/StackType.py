@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Generator, Iterator
 from dataclasses import dataclass
 
+from .GenericPrinter import GenericPrinter
 from .Types import Type
 
 
@@ -30,13 +31,6 @@ class StackType(Type, ABC, Iterable):
     def prepend(self, t: Type) -> StackType:
         pass
 
-    def __str__(self):
-        return f"[{self.show()}]"
-
-    @abstractmethod
-    def show(self) -> str:
-        pass
-
     def pop(self) -> tuple[StackType, Type]:
         raise StackException("Can't pop empty stack")
 
@@ -50,6 +44,7 @@ class StackType(Type, ABC, Iterable):
                         current = prev
                     case _:
                         return
+
         return iter(gen())
 
     def concat(self, other: StackType) -> StackType:
@@ -68,7 +63,7 @@ class EmptyStack(StackType):
 
     empty = True
 
-    def show(self):
+    def show(self, printer: GenericPrinter):
         return ""
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
@@ -80,10 +75,10 @@ class ConsStack(StackType):
     def prepend(self, t: Type) -> StackType:
         return ConsStack(self.type, self.prev.prepend(t))
 
-    def show(self):
+    def show(self, printer: GenericPrinter):
         if self.prev.empty:
-            return str(self.type)
-        return f"{self.prev.show()}, {self.type}"
+            return self.type.show(printer)
+        return f"{self.prev.show(printer)}, {self.type.show(printer)}"
 
     type: Type
     prev: StackType

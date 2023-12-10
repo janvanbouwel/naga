@@ -3,9 +3,8 @@ from enum import Enum
 
 from functions.Function import Function
 from functions.Module import Module
-from functions.Symbol import Symbol
-from type.InstructionType import FT
 from type.Generics import Generic
+from type.InstructionType import FT
 from type.Types import BaseType
 
 Bool = BaseType("Bool")
@@ -32,7 +31,7 @@ def if_exec(stack):
 
 
 def if_func():
-    gen = Generic("a")
+    gen = Generic()
     return Function.new([FT.new([Bool, gen, gen], [gen])], if_exec)
 
 
@@ -41,16 +40,11 @@ def eq_exec(stack: list):
 
 
 def eq_func():
-    gen = Generic("a")
+    gen = Generic()
     return Function.new([FT.new([gen, gen], [Bool])], eq_exec)
 
 
 class Boolean(Module):
-
-    @staticmethod
-    def parse(token: str) -> Symbol:
-        if token in ["TRUE", "FALSE"]:
-            return bool_literal(token == "TRUE")
 
     @staticmethod
     def built_in() -> dict[str, Callable[[], Function]]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .FunctionType import FunctionType
+from .GenericPrinter import GenericPrinter
 from .InstructionType import InstructionType
 from .StackType import StackType, StackException
 from .Types import Type
@@ -10,10 +11,8 @@ from .Types import Type
 
 @dataclass(eq=False, frozen=True)
 class Generic(Type):
-    name: str
-
-    def __repr__(self):
-        return f"Gen({self.name})"
+    def show(self, printer: GenericPrinter):
+        return f"Gen({printer.get_name(self)})"
 
     def __copy__(self):
         return self
@@ -35,14 +34,13 @@ class Generic(Type):
 
 @dataclass(eq=False, frozen=True)
 class GenericFunction(InstructionType):
-    name: str
 
     @staticmethod
-    def new(name: str):
-        return GenericFunction(GenericStack(name), GenericStack(name), name)
+    def new():
+        return GenericFunction(GenericStack(), GenericStack())
 
-    def __repr__(self):
-        return f"GF({self.in_type}->{self.out_type})"
+    def show(self, printer: GenericPrinter):
+        return f"GF({self.in_type.show(printer)}->{self.out_type.show(printer)})"
 
     def __copy__(self):
         return self
@@ -65,7 +63,7 @@ class GenericFunction(InstructionType):
         out_type = self.out_type.replace(generics)
 
         if isinstance(in_type, GenericStack) or isinstance(out_type, GenericStack):
-            return GenericFunction(in_type, out_type, self.name)
+            return GenericFunction(in_type, out_type)
         return InstructionType(in_type, out_type)
 
 
@@ -73,8 +71,6 @@ class GenericFunction(InstructionType):
 class GenericStack(StackType):
     def prepend(self, t: Type) -> StackType:
         raise StackException("Idk yet what to do here if it is necessary")
-
-    name: str
 
     def __copy__(self):
         return self
@@ -88,8 +84,8 @@ class GenericStack(StackType):
     def __hash__(self):
         return id(self)
 
-    def show(self) -> str:
-        return f"*{self.name}"
+    def show(self, printer: GenericPrinter) -> str:
+        return f"*{printer.get_name(self)}"
 
     def match(self, other: Type, generics: dict[Type, Type]) -> tuple[bool, dict[Type, Type]]:
         if self in generics:

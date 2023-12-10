@@ -3,13 +3,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from functions.Symbol import Symbol
-from type.InstructionType import InstructionType
 from type.FunctionType import FunctionType
+from type.InstructionType import InstructionType
 
 
 @dataclass(frozen=True)
-class Function(Symbol):
+class Function:
     type: FunctionType
 
     value: Callable[[list], None]
