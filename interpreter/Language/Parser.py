@@ -29,7 +29,7 @@ def traverse_tree(tree: Tree):
 
 
 def parse(content) -> Tree:
-    Language.build_library("./build/lang.so", ["/home/jan/git/lang/parser"])
+    Language.build_library("./build/lang.so", ["/home/jan/git/lang/tree-sitter-lang"])
     LANG = Language("build/lang.so", "lang")
     parser = Parser()
 
