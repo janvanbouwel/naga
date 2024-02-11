@@ -1,3 +1,5 @@
+from collections import ChainMap
+
 from type.BindingType import BindingType, BoundType
 from type.FunctionType import FunctionType
 from type.Generics import GenericStack
@@ -12,11 +14,14 @@ class TypecheckException(SystemExit):
 
 class TypeChecker:
     stack: FunctionType
-    context: dict[str, Type]
+    context: ChainMap
 
-    def __init__(self):
+    def __init__(self, context: ChainMap = None):
         self.stack = FunctionType([InstructionType.new([], [])])
-        self.context = {}
+        if context is None:
+            self.context = ChainMap()
+        else:
+            self.context = context.new_child()
 
     def check(self, t: FunctionType):
         if isinstance(t, BoundType):

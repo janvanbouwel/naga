@@ -1,16 +1,62 @@
 
 
-use tree_sitter;
+use pest::Parser;
+use pest_derive::Parser;
+
+#[derive(Parser)]
+#[grammar = "naga.pest"]
+pub struct NagaParser;
+
+enum StackT {
+    Empty,
+    Cons { t: Box<Type>, next: Box<StackT> },
+}
+
+struct FunctionT {
+    from: StackT,
+    to: StackT,
+}
+
+enum Type {
+    Boolean,
+    Integer,
+    Stack(StackT),
+    Function(FunctionT),
+}
+
+struct Function<'a> {
+    code: &'a str,
+    ty: FunctionT
+}
+
+
+
+fn parse(source: &str) -> Result<Vec<&str>, &str> {
+    let mut code = vec!("stack = []");
+    
+    let pairs = NagaParser::parse(Rule::program, source).unwrap();
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::tru => code.push("stack.append(True)"),
+            Rule::fals => code.push("stack.append(False)"),
+            Rule::identifier => match pair.as_str() {
+                "and" => code.push("_ = stack.pop(); stack[-1] &= _"),
+                _ => return Err(""),
+            },
+            Rule::EOI => (),
+            _ => println!("{}", pair),
+        }
+    }
+
+    code.push("print(stack)");
+    Ok(code)
+}
 
 fn main() {
-    let code = "# hello   
-    (1 2 +) $b () (   )
-    a ' 'abc aa '$a 1 $b #abmqklsdjf
-    TRUE id FALSE ? 5.0";
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(tree_sitter_lang::language())
-        .expect("Error loading lang grammar");
-    let tree = parser.parse(code, None).unwrap();
-    println!("{}", tree.root_node().to_sexp())
+    let source = "# hello   
+    True False and";
+    
+    let code = parse(source).expect("");
+
+    println!("{}", code.join("\n"));
 }

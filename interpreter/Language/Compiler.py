@@ -22,8 +22,8 @@ class Compiler:
     typechecker: TypeChecker
     runtime_context: ChainMap
 
-    def __init__(self, runtime_context: ChainMap = None):
-        self.typechecker = TypeChecker()
+    def __init__(self, runtime_context: ChainMap = None, typecheck_context: ChainMap = None):
+        self.typechecker = TypeChecker(typecheck_context)
         if runtime_context is None:
             self.runtime_context = ChainMap()
         else:
@@ -51,7 +51,7 @@ class Compiler:
         )
 
     def create_function(self, context: Module.context, program: Node) -> Function:
-        compiler = Compiler(self.runtime_context)
+        compiler = Compiler(self.runtime_context, self.typechecker.context)
         body = list(compiler.compile_program(context, program))
 
         def run(stack: list):

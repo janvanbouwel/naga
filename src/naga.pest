@@ -1,0 +1,17 @@
+tru  = { "True" }
+fals = { "False" }
+
+literal = _{ tru | fals }
+
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-" )* }
+
+/// literal has precedence before identifier
+expression = _{
+    literal 
+    | identifier
+}
+
+program = _{ SOI ~ expression* ~ EOI }
+
+WHITESPACE = _{ NEWLINE | WHITE_SPACE }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }

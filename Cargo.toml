@@ -1,10 +1,10 @@
 [package]
-name = "lang"
+name = "nagalang"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tree-sitter = "~0.20.10"
-tree-sitter-lang = { path = "tree-sitter-lang" }
+pest = "2.6"
+pest_derive = "2.6"
