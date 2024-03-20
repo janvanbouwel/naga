@@ -1,14 +1,8 @@
-tru  = { "True" }
-fals = { "False" }
-
-literal = _{ tru | fals }
-
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-" )* }
 
 /// literal has precedence before identifier
 expression = _{
-    literal 
-    | identifier
+    identifier
 }
 
 program = _{ SOI ~ expression* ~ EOI }
