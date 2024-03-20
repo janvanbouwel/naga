@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-
-use crate::{ast::AstNode};
+use crate::ast::AstNode;
 
 pub fn compile(ast: &Vec<AstNode>) -> Result<String, ()> {
     let mut code = vec!["stack = []"];
@@ -10,12 +9,10 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, ()> {
 
     for node in ast {
         match node {
-            AstNode::Identifier(id) => {
-                match context.get(id.as_str()) {
-                    Some(res) => code.push(res),
-                    None => return Err(()),
-                }
-            }
+            AstNode::Identifier(id) => match context.get(id.as_str()) {
+                Some(res) => code.push(res),
+                None => return Err(()),
+            },
         }
     }
 
@@ -23,7 +20,6 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, ()> {
 
     Ok(code.join("\n"))
 }
-
 
 fn builtins_code() -> HashMap<&'static str, &'static str> {
     HashMap::from([
@@ -33,12 +29,11 @@ fn builtins_code() -> HashMap<&'static str, &'static str> {
     ])
 }
 
-
 #[test]
 fn test_builtins() {
     let builtins = crate::builtins::builtin_context();
     let code = builtins_code();
-    
+
     for id in builtins.keys() {
         assert!(code.contains_key(id))
     }

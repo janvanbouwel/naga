@@ -1,48 +1,41 @@
 use crate::{ast::AstNode, builtins::builtin_context};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StackT {
-    Empty,
-    Cons { ty: Box<Type>, prev: Box<StackT> },
-}
+pub struct StackT(Vec<Type>);
 
 impl StackT {
     fn new(tys: &[Type]) -> Self {
-        let mut stack = StackT::Empty;
-
-        for ty in tys.iter().rev() {
-            stack = stack.push(ty);
-        }
-        stack
+        StackT(Vec::from(tys))
     }
 
-    fn push(self, ty: &Type) -> StackT {
-        StackT::Cons {
-            ty: Box::new(ty.clone()),
-            prev: Box::new(self),
-        }
+    // fn push(&self, ty: &Type) -> StackT {
+    //     let mut tys = self.0.clone();
+    //     tys.push(ty.clone());
+    //     StackT(tys)
+    // }
+
+    fn append(&self, other: &StackT) -> StackT {
+        let mut tys = self.0.clone();
+        tys.extend_from_slice(&other.0);
+        StackT(tys)
     }
 
-    fn append(self, other: &StackT) -> StackT {
-        match other {
-            StackT::Empty => self,
-            StackT::Cons { ty, prev } => self.append(prev).push(ty),
-        }
+    fn split_last(&self) -> Option<(&Type, StackT)> {
+        self.0
+            .split_last()
+            .map(|(ty, rest)| (ty, StackT::new(rest)))
     }
 
     fn take(self, other: &StackT) -> Result<StackT, String> {
-        match other {
-            StackT::Empty => Ok(self),
-            StackT::Cons {
-                ty: other_t,
-                prev: other_prev,
-            } => match self {
-                StackT::Empty => Err("Cannot take from empty stack".into()),
-                StackT::Cons { ty: t, prev } => {
-                    if t != *other_t {
+        match other.split_last() {
+            None => Ok(self),
+            Some((other_t, other_prev)) => match self.split_last() {
+                None => Err("Cannot take from empty stack".into()),
+                Some((t, prev)) => {
+                    if t != other_t {
                         return Err("Types did not match".into());
                     };
-                    prev.take(other_prev)
+                    prev.take(&other_prev)
                 }
             },
         }
@@ -72,7 +65,7 @@ pub enum Type {
 }
 
 pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
-    let mut stack: StackT = StackT::Empty;
+    let mut stack: StackT = StackT::new(&[]);
     let context = builtin_context();
 
     for node in ast {

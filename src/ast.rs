@@ -1,6 +1,4 @@
-
-
-use pest::{Parser, error::Error};
+use pest::{error::Error, Parser};
 use pest_derive::Parser;
 
 #[derive(Parser)]
@@ -19,11 +17,10 @@ pub fn parse(source: &str) -> Result<Vec<AstNode>, Box<Error<Rule>>> {
     for pair in pairs {
         match pair.as_rule() {
             Rule::identifier => ast.push(AstNode::Identifier(pair.as_str().into())),
-            Rule::EOI => {},
+            Rule::EOI => {}
             _ => unreachable!(),
         }
     }
-
 
     Ok(ast)
 }
