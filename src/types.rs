@@ -1,4 +1,8 @@
+use immutable_map::TreeMap;
+
 use crate::{ast::AstNode, builtins::builtin_context};
+
+type GenericBindings = TreeMap<usize, Type>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StackT(Vec<Type>);
@@ -14,10 +18,18 @@ impl StackT {
     //     StackT(tys)
     // }
 
-    fn append(&self, other: &StackT) -> StackT {
+    fn append(&self, other: &StackT, generics: GenericBindings) -> Result<StackT, String> {
         let mut tys = self.0.clone();
-        tys.extend_from_slice(&other.0);
-        StackT(tys)
+        for ty in &other.0 {
+            match ty {
+                Type::Generic(n) => match generics.get(n) {
+                    None => return Err("generic wasn't bound".into()),
+                    Some(bound_t) => tys.push(bound_t.clone()),
+                },
+                _ => tys.push(ty.clone()),
+            }
+        }
+        Ok(StackT(tys))
     }
 
     fn split_last(&self) -> Option<(&Type, StackT)> {
@@ -26,17 +38,36 @@ impl StackT {
             .map(|(ty, rest)| (ty, StackT::new(rest)))
     }
 
-    fn take(self, other: &StackT) -> Result<StackT, String> {
+    fn take(
+        &self,
+        other: &StackT,
+        generics: GenericBindings,
+    ) -> Result<(StackT, GenericBindings), String> {
         match other.split_last() {
-            None => Ok(self),
+            None => Ok((self.clone(), generics)),
             Some((other_t, other_prev)) => match self.split_last() {
                 None => Err("Cannot take from empty stack".into()),
-                Some((t, prev)) => {
-                    if t != other_t {
-                        return Err("Types did not match".into());
-                    };
-                    prev.take(&other_prev)
-                }
+                Some((stack_t, prev)) => match other_t {
+                    Type::Generic(n) => match generics.get(n) {
+                        None => prev.take(&other_prev, generics.insert(n.clone(), stack_t.clone())),
+                        Some(bound_t) => {
+                            if bound_t != stack_t {
+                                return Err(std::format!("Types didn't match"));
+                            }
+                            prev.take(&other_prev, generics)
+                        }
+                    },
+                    _ => {
+                        if stack_t != other_t {
+                            return Err(std::format!(
+                                "Types didn't match {:?} {:?}",
+                                stack_t,
+                                other_t
+                            ));
+                        };
+                        prev.take(&other_prev, generics)
+                    }
+                },
             },
         }
     }
@@ -62,6 +93,7 @@ pub enum Type {
     Boolean,
     Stack(StackT),
     Function(FunctionT),
+    Generic(usize),
 }
 
 pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
@@ -73,12 +105,15 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
             AstNode::Identifier(id) => match context.get(id.as_str()) {
                 Some(ftl) => {
                     let ft = ftl();
-                    stack = stack.take(&ft.from)?.append(&ft.to).clone();
+                    let mut generics = GenericBindings::new();
+                    (stack, generics) = stack.take(&ft.from, generics)?;
+                    stack = stack.append(&ft.to, generics)?.clone();
+
+                    println!("# {}   {:?}", id, stack);
                 }
                 None => return Err("Identifier not in context".into()),
             },
         }
-        println!("# {:?}", stack);
     }
 
     Ok(())

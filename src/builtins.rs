@@ -17,5 +17,11 @@ pub fn builtin_context() -> HashMap<&'static str, FunctionTypeProvider> {
         ("and", || {
             FunctionT::new(&[Type::Boolean, Type::Boolean], &[Type::Boolean])
         }),
+        ("id", || {
+            FunctionT::new(&[Type::Generic(0)], &[Type::Generic(0)])
+        }),
+        ("dup", || {
+            FunctionT::new(&[Type::Generic(0)], &[Type::Generic(0), Type::Generic(0)])
+        }),
     ])
 }

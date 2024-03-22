@@ -26,6 +26,8 @@ fn builtins_code() -> HashMap<&'static str, &'static str> {
         ("True", "stack.append(True)"),
         ("False", "stack.append(False)"),
         ("and", "_ = stack.pop(); stack[-1] &= _"),
+        ("id", ""),
+        ("dup", "stack.append(stack[-1])"),
     ])
 }
 
