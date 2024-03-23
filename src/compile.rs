@@ -3,20 +3,25 @@ use std::collections::HashMap;
 use crate::ast::AstNode;
 
 pub fn compile(ast: &Vec<AstNode>) -> Result<String, ()> {
-    let mut code = vec!["stack = []"];
+    let mut code: Vec<String> = vec!["stack = []".into()];
 
     let context = builtins_code();
 
     for node in ast {
         match node {
+            AstNode::Apply => code.push("_ = stack.pop(); _()".into()),
             AstNode::Identifier(id) => match context.get(id.as_str()) {
-                Some(res) => code.push(res),
+                Some(res) => code.push(res.to_string()),
+                None => return Err(()),
+            },
+            AstNode::Quote(id) => match context.get(id.as_str()) {
+                Some(res) => code.push(std::format!("stack.append(lambda: {})", res)),
                 None => return Err(()),
             },
         }
     }
 
-    code.push("print(stack)");
+    code.push("print(stack)".into());
 
     Ok(code.join("\n"))
 }

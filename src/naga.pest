@@ -1,11 +1,17 @@
-identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-" )* }
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
+apply = { "!" }
+
+quote = ${ "'" ~ identifier? }
 
 /// literal has precedence before identifier
 expression = _{
-    identifier
+    apply
+  | quote
+  | identifier
 }
 
 program = _{ SOI ~ expression* ~ EOI }
 
 WHITESPACE = _{ NEWLINE | WHITE_SPACE }
-COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ "#" ~ (!"\n" ~ ANY)* }

@@ -7,6 +7,8 @@ pub struct NagaParser;
 
 pub enum AstNode {
     Identifier(String),
+    Quote(String),
+    Apply,
 }
 
 pub fn parse(source: &str) -> Result<Vec<AstNode>, Box<Error<Rule>>> {
@@ -16,6 +18,11 @@ pub fn parse(source: &str) -> Result<Vec<AstNode>, Box<Error<Rule>>> {
 
     for pair in pairs {
         match pair.as_rule() {
+            Rule::apply => ast.push(AstNode::Apply),
+            Rule::quote => match pair.into_inner().next() {
+                None => ast.push(AstNode::Quote("id".into())),
+                Some(pair) => ast.push(AstNode::Quote(pair.as_str().into())),
+            },
             Rule::identifier => ast.push(AstNode::Identifier(pair.as_str().into())),
             Rule::EOI => {}
             _ => unreachable!(),

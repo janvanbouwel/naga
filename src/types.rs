@@ -2,7 +2,7 @@ use immutable_map::TreeMap;
 
 use crate::{ast::AstNode, builtins::builtin_context};
 
-type GenericBindings = TreeMap<usize, Type>;
+type GenericBindings = TreeMap<u32, Type>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StackT(Vec<Type>);
@@ -18,18 +18,10 @@ impl StackT {
     //     StackT(tys)
     // }
 
-    fn append(&self, other: &StackT, generics: GenericBindings) -> Result<StackT, String> {
+    fn push(&self, ty: &Type) -> StackT {
         let mut tys = self.0.clone();
-        for ty in &other.0 {
-            match ty {
-                Type::Generic(n) => match generics.get(n) {
-                    None => return Err("generic wasn't bound".into()),
-                    Some(bound_t) => tys.push(bound_t.clone()),
-                },
-                _ => tys.push(ty.clone()),
-            }
-        }
-        Ok(StackT(tys))
+        tys.push(ty.clone());
+        StackT(tys)
     }
 
     fn split_last(&self) -> Option<(&Type, StackT)> {
@@ -41,15 +33,17 @@ impl StackT {
     fn take(
         &self,
         other: &StackT,
-        generics: GenericBindings,
+        generics: &GenericBindings,
     ) -> Result<(StackT, GenericBindings), String> {
         match other.split_last() {
-            None => Ok((self.clone(), generics)),
+            None => Ok((self.clone(), generics.clone())),
             Some((other_t, other_prev)) => match self.split_last() {
                 None => Err("Cannot take from empty stack".into()),
                 Some((stack_t, prev)) => match other_t {
                     Type::Generic(n) => match generics.get(n) {
-                        None => prev.take(&other_prev, generics.insert(n.clone(), stack_t.clone())),
+                        None => {
+                            prev.take(&other_prev, &generics.insert(n.clone(), stack_t.clone()))
+                        }
                         Some(bound_t) => {
                             if bound_t != stack_t {
                                 return Err(std::format!("Types didn't match"));
@@ -86,6 +80,27 @@ impl FunctionT {
             to: StackT::new(to),
         }
     }
+
+    fn apply(
+        &self,
+        stack: &StackT,
+        generics: &GenericBindings,
+    ) -> Result<(StackT, GenericBindings), String> {
+        let (stack, generics) = stack.take(&self.from, &generics)?;
+
+        let mut stack = stack;
+        for ty in self.to.0.clone() {
+            match ty {
+                Type::Generic(n) => match generics.get(&n) {
+                    None => return Err("generic wasn't bound".into()),
+                    Some(bound_t) => stack = stack.push(&bound_t),
+                },
+                _ => stack = stack.push(&ty),
+            }
+        }
+
+        Ok((stack, generics))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,7 +108,7 @@ pub enum Type {
     Boolean,
     Stack(StackT),
     Function(FunctionT),
-    Generic(usize),
+    Generic(u32),
 }
 
 pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
@@ -105,13 +120,33 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
             AstNode::Identifier(id) => match context.get(id.as_str()) {
                 Some(ftl) => {
                     let ft = ftl();
-                    let mut generics = GenericBindings::new();
-                    (stack, generics) = stack.take(&ft.from, generics)?;
-                    stack = stack.append(&ft.to, generics)?.clone();
+                    let generics = GenericBindings::new();
 
-                    println!("# {}   {:?}", id, stack);
+                    (stack, _) = ft.apply(&stack, &generics)?;
+
+                    println!("# {}\t {:?}", id, stack);
                 }
                 None => return Err("Identifier not in context".into()),
+            },
+            AstNode::Quote(id) => match context.get(id.as_str()) {
+                Some(ftl) => {
+                    let ft = ftl();
+
+                    stack = stack.push(&Type::Function(ft));
+
+                    println!("# {}\t {:?}", id, stack);
+                }
+                None => return Err("Identifier not in context".into()),
+            },
+            AstNode::Apply => match stack.split_last() {
+                Some((Type::Function(ft), stack_rest)) => {
+                    let generics = GenericBindings::new();
+
+                    (stack, _) = ft.apply(&stack_rest, &generics)?;
+
+                    println!("# {}\t {:?}", "!", stack);
+                }
+                _ => return Err("Top of stack is not a function".into()),
             },
         }
     }
