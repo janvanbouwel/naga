@@ -4,10 +4,13 @@ apply = { "!" }
 
 quote = ${ "'" ~ identifier? }
 
+bind = ${ "$" ~ identifier }
+
 /// literal has precedence before identifier
 expression = _{
     apply
   | quote
+  | bind
   | identifier
 }
 

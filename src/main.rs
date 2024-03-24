@@ -2,7 +2,7 @@ use nagalang::{ast::parse, compile::compile, types::typecheck};
 
 fn main() {
     let source = "# hello   
-    True 'dup ! False and and";
+    True 'dup ! and 'and $new_and True new_and";
 
     let ast = parse(source).expect("failed to parse");
     typecheck(&ast).expect("Typechecking failed");

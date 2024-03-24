@@ -1,6 +1,6 @@
 use immutable_map::TreeMap;
 
-use crate::{ast::AstNode, builtins::builtin_context};
+use crate::{ast::AstNode, builtins::initial_context};
 
 type GenericBindings = TreeMap<u32, Type>;
 
@@ -113,13 +113,12 @@ pub enum Type {
 
 pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
     let mut stack: StackT = StackT::new(&[]);
-    let context = builtin_context();
+    let mut context = initial_context();
 
     for node in ast {
         match node {
             AstNode::Identifier(id) => match context.get(id.as_str()) {
-                Some(ftl) => {
-                    let ft = ftl();
+                Some(ft) => {
                     let generics = GenericBindings::new();
 
                     (stack, _) = ft.apply(&stack, &generics)?;
@@ -129,10 +128,8 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
                 None => return Err("Identifier not in context".into()),
             },
             AstNode::Quote(id) => match context.get(id.as_str()) {
-                Some(ftl) => {
-                    let ft = ftl();
-
-                    stack = stack.push(&Type::Function(ft));
+                Some(ft) => {
+                    stack = stack.push(&Type::Function(ft.clone()));
 
                     println!("# {}\t {:?}", id, stack);
                 }
@@ -148,8 +145,20 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
                 }
                 _ => return Err("Top of stack is not a function".into()),
             },
+            AstNode::Bind(id) => match stack.split_last() {
+                Some((Type::Function(ft), stack_rest)) => {
+                    context.insert(id.clone(), ft.clone());
+
+                    stack = stack_rest;
+                    println!("# ${}\t {:?}", id, stack);
+                    println!("# bound: {:?}", context.get(id).unwrap());
+                }
+                _ => return Err("Cannot only bind a function".into()),
+            },
         }
     }
+
+    println!("# {:?}", context);
 
     Ok(())
 }
