@@ -25,9 +25,7 @@ impl Stack {
     }
 
     fn split_last(&self) -> Option<(&Type, Stack)> {
-        self.0
-            .split_last()
-            .map(|(ty, rest)| (ty, Stack::new(rest)))
+        self.0.split_last().map(|(ty, rest)| (ty, Stack::new(rest)))
     }
 
     fn take(
@@ -39,19 +37,20 @@ impl Stack {
             None => Ok((self.clone(), generics.clone())),
             Some((other_t, other_prev)) => match self.split_last() {
                 None => Err("Cannot take from empty stack".into()),
-                Some((stack_t, prev)) => match other_t {
-                    Type::Gen(n) => match generics.get(n) {
-                        None => {
-                            prev.take(&other_prev, &generics.insert(n.clone(), stack_t.clone()))
-                        }
-                        Some(bound_t) => {
-                            if bound_t != stack_t {
-                                return Err(std::format!("Types didn't match"));
+                Some((stack_t, prev)) => {
+                    if let Type::Gen(n) = other_t {
+                        match generics.get(n) {
+                            None => {
+                                prev.take(&other_prev, &generics.insert(n.clone(), stack_t.clone()))
                             }
-                            prev.take(&other_prev, generics)
+                            Some(bound_t) => {
+                                if bound_t != stack_t {
+                                    return Err(std::format!("Types didn't match"));
+                                }
+                                prev.take(&other_prev, generics)
+                            }
                         }
-                    },
-                    _ => {
+                    } else {
                         if stack_t != other_t {
                             return Err(std::format!(
                                 "Types didn't match {:?} {:?}",
@@ -61,7 +60,7 @@ impl Stack {
                         };
                         prev.take(&other_prev, generics)
                     }
-                },
+                }
             },
         }
     }
@@ -110,13 +109,13 @@ pub enum Type {
     Gen(u32),
 }
 
-pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
+pub fn typecheck(ast: &Vec<AstNode>) -> Result<Stack, String> {
     let mut stack: Stack = Stack::new(&[]);
     let mut context = initial_context();
 
     for node in ast {
         match node {
-            AstNode::Identifier(id) => match context.get(id.as_str()) {
+            AstNode::Id(id) => match context.get(id.as_str()) {
                 Some(ft) => {
                     let generics = GenericBindings::new();
 
@@ -159,5 +158,16 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
 
     println!("# {:?}", context);
 
-    Ok(())
+    Ok(stack)
+}
+
+#[test]
+fn test_bool_and() {
+    let ast = vec![
+        AstNode::Id("True".to_string()),
+        AstNode::Id("True".to_string()),
+        AstNode::Id("and".to_string()),
+    ];
+    let stack = typecheck(&ast).unwrap();
+    assert_eq!(stack, Stack::new(&[Type::Bool]))
 }

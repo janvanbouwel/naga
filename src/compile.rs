@@ -10,7 +10,7 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, ()> {
     for node in ast {
         match node {
             AstNode::Apply => code.push("_ = stack.pop(); _()".into()),
-            AstNode::Identifier(id) => match context.get(id) {
+            AstNode::Id(id) => match context.get(id) {
                 Some(res) => code.push(res.to_string()),
                 None => return Err(()),
             },

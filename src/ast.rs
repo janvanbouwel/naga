@@ -6,7 +6,7 @@ use pest_derive::Parser;
 pub struct NagaParser;
 
 pub enum AstNode {
-    Identifier(String),
+    Id(String),
     Quote(String),
     Bind(String),
     Apply,
@@ -27,7 +27,7 @@ pub fn parse(source: &str) -> Result<Vec<AstNode>, Box<Error<Rule>>> {
             Rule::bind => ast.push(AstNode::Bind(
                 pair.into_inner().next().unwrap().as_str().into(),
             )),
-            Rule::identifier => ast.push(AstNode::Identifier(pair.as_str().into())),
+            Rule::identifier => ast.push(AstNode::Id(pair.as_str().into())),
             Rule::EOI => {}
             _ => unreachable!(),
         }
