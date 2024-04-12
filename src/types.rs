@@ -5,11 +5,11 @@ use crate::{ast::AstNode, builtins::initial_context};
 type GenericBindings = TreeMap<u32, Type>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StackT(Vec<Type>);
+pub struct Stack(Vec<Type>);
 
-impl StackT {
+impl Stack {
     fn new(tys: &[Type]) -> Self {
-        StackT(Vec::from(tys))
+        Stack(Vec::from(tys))
     }
 
     // fn push(&self, ty: &Type) -> StackT {
@@ -18,29 +18,29 @@ impl StackT {
     //     StackT(tys)
     // }
 
-    fn push(&self, ty: &Type) -> StackT {
+    fn push(&self, ty: &Type) -> Stack {
         let mut tys = self.0.clone();
         tys.push(ty.clone());
-        StackT(tys)
+        Stack(tys)
     }
 
-    fn split_last(&self) -> Option<(&Type, StackT)> {
+    fn split_last(&self) -> Option<(&Type, Stack)> {
         self.0
             .split_last()
-            .map(|(ty, rest)| (ty, StackT::new(rest)))
+            .map(|(ty, rest)| (ty, Stack::new(rest)))
     }
 
     fn take(
         &self,
-        other: &StackT,
+        other: &[Type],
         generics: &GenericBindings,
-    ) -> Result<(StackT, GenericBindings), String> {
+    ) -> Result<(Stack, GenericBindings), String> {
         match other.split_last() {
             None => Ok((self.clone(), generics.clone())),
             Some((other_t, other_prev)) => match self.split_last() {
                 None => Err("Cannot take from empty stack".into()),
                 Some((stack_t, prev)) => match other_t {
-                    Type::Generic(n) => match generics.get(n) {
+                    Type::Gen(n) => match generics.get(n) {
                         None => {
                             prev.take(&other_prev, &generics.insert(n.clone(), stack_t.clone()))
                         }
@@ -68,30 +68,30 @@ impl StackT {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunctionT {
-    from: StackT,
-    to: StackT,
+pub struct Function {
+    from: Vec<Type>,
+    to: Vec<Type>,
 }
 
-impl FunctionT {
+impl Function {
     pub fn new(from: &[Type], to: &[Type]) -> Self {
-        FunctionT {
-            from: StackT::new(from),
-            to: StackT::new(to),
+        Function {
+            from: Vec::from(from),
+            to: Vec::from(to),
         }
     }
 
     fn apply(
         &self,
-        stack: &StackT,
+        stack: &Stack,
         generics: &GenericBindings,
-    ) -> Result<(StackT, GenericBindings), String> {
+    ) -> Result<(Stack, GenericBindings), String> {
         let (stack, generics) = stack.take(&self.from, &generics)?;
 
         let mut stack = stack;
-        for ty in self.to.0.clone() {
+        for ty in self.to.clone() {
             match ty {
-                Type::Generic(n) => match generics.get(&n) {
+                Type::Gen(n) => match generics.get(&n) {
                     None => return Err("generic wasn't bound".into()),
                     Some(bound_t) => stack = stack.push(&bound_t),
                 },
@@ -105,14 +105,13 @@ impl FunctionT {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
-    Boolean,
-    Stack(StackT),
-    Function(FunctionT),
-    Generic(u32),
+    Bool,
+    Func(Function),
+    Gen(u32),
 }
 
 pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
-    let mut stack: StackT = StackT::new(&[]);
+    let mut stack: Stack = Stack::new(&[]);
     let mut context = initial_context();
 
     for node in ast {
@@ -129,14 +128,14 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
             },
             AstNode::Quote(id) => match context.get(id.as_str()) {
                 Some(ft) => {
-                    stack = stack.push(&Type::Function(ft.clone()));
+                    stack = stack.push(&Type::Func(ft.clone()));
 
                     println!("# {}\t {:?}", id, stack);
                 }
                 None => return Err("Identifier not in context".into()),
             },
             AstNode::Apply => match stack.split_last() {
-                Some((Type::Function(ft), stack_rest)) => {
+                Some((Type::Func(ft), stack_rest)) => {
                     let generics = GenericBindings::new();
 
                     (stack, _) = ft.apply(&stack_rest, &generics)?;
@@ -146,7 +145,7 @@ pub fn typecheck(ast: &Vec<AstNode>) -> Result<(), String> {
                 _ => return Err("Top of stack is not a function".into()),
             },
             AstNode::Bind(id) => match stack.split_last() {
-                Some((Type::Function(ft), stack_rest)) => {
+                Some((Type::Func(ft), stack_rest)) => {
                     context.insert(id.clone(), ft.clone());
 
                     stack = stack_rest;

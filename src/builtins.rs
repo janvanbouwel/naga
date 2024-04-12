@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
-use crate::types::{FunctionT, Type};
+use crate::types::{Function, Type};
 
-pub fn initial_context() -> HashMap<String, FunctionT> {
+pub fn initial_context() -> HashMap<String, Function> {
     HashMap::from([
-        ("True".to_string(), FunctionT::new(&[], &[Type::Boolean])),
-        ("False".to_string(), FunctionT::new(&[], &[Type::Boolean])),
+        ("True".to_string(), Function::new(&[], &[Type::Bool])),
+        ("False".to_string(), Function::new(&[], &[Type::Bool])),
         ("and".to_string(), {
-            FunctionT::new(&[Type::Boolean, Type::Boolean], &[Type::Boolean])
+            Function::new(&[Type::Bool, Type::Bool], &[Type::Bool])
         }),
         ("id".to_string(), {
-            FunctionT::new(&[Type::Generic(0)], &[Type::Generic(0)])
+            Function::new(&[Type::Gen(0)], &[Type::Gen(0)])
         }),
         ("dup".to_string(), {
-            FunctionT::new(&[Type::Generic(0)], &[Type::Generic(0), Type::Generic(0)])
+            Function::new(&[Type::Gen(0)], &[Type::Gen(0), Type::Gen(0)])
         }),
     ])
 }
