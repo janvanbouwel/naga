@@ -1,19 +1,58 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
-use crate::types::{Function, Type};
+use crate::{
+    stacklike::Store,
+    types::{FTy, Function, Ty},
+};
 
-pub fn initial_context() -> HashMap<String, Function> {
-    HashMap::from([
-        ("True".to_string(), Function::new(&[], &[Type::Bool])),
-        ("False".to_string(), Function::new(&[], &[Type::Bool])),
-        ("and".to_string(), {
-            Function::new(&[Type::Bool, Type::Bool], &[Type::Bool])
+pub fn initial_context() -> Store {
+    let mut types: Store = HashMap::new();
+
+    types.insert(
+        "True".to_string(),
+        Rc::new(|| Function::new(&[], &[Ty::Bool.into()])),
+    );
+
+    types.insert(
+        "False".to_string(),
+        Rc::new(|| Function::new(&[], &[Ty::Bool.into()])),
+    );
+    types.insert(
+        "and".to_string(),
+        Rc::new(|| Function::new(&[Ty::Bool.into(), Ty::Bool.into()], &[Ty::Bool.into()])),
+    );
+    types.insert(
+        "not".to_string(),
+        Rc::new(|| Function::new(&[Ty::Bool.into()], &[Ty::Bool.into()])),
+    );
+    types.insert(
+        "id".to_string(),
+        Rc::new(|| {
+            let gen = FTy::new_gen();
+            Function::new(&[gen.clone()], &[gen.clone()])
         }),
-        ("id".to_string(), {
-            Function::new(&[Type::Gen(0)], &[Type::Gen(0)])
+    );
+    types.insert(
+        "dup".to_string(),
+        Rc::new(|| {
+            let gen = FTy::new_gen();
+            Function::new(&[gen.clone()], &[gen.clone(), gen.clone()])
         }),
-        ("dup".to_string(), {
-            Function::new(&[Type::Gen(0)], &[Type::Gen(0), Type::Gen(0)])
+    );
+    types.insert(
+        "drop".to_string(),
+        Rc::new(|| {
+            let gen = FTy::new_gen();
+            Function::new(&[gen], &[])
         }),
-    ])
+    );
+    types.insert(
+        "eq".to_string(),
+        Rc::new(|| {
+            let gen = FTy::new_gen();
+            Function::new(&[gen.clone(), gen.clone()], &[Ty::Bool.into()])
+        }),
+    );
+
+    types
 }

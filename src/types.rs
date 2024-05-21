@@ -1,173 +1,187 @@
-use immutable_map::TreeMap;
+use by_address::ByAddress;
 
-use crate::{ast::AstNode, builtins::initial_context};
+use std::ops::Deref;
+use std::{collections::HashMap, rc::Rc};
 
-type GenericBindings = TreeMap<u32, Type>;
+pub type Gen = ByAddress<Rc<()>>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Stack(Vec<Type>);
+pub type GenBindings = HashMap<Gen, FTy>;
 
-impl Stack {
-    fn new(tys: &[Type]) -> Self {
-        Stack(Vec::from(tys))
-    }
-
-    // fn push(&self, ty: &Type) -> StackT {
-    //     let mut tys = self.0.clone();
-    //     tys.push(ty.clone());
-    //     StackT(tys)
-    // }
-
-    fn push(&self, ty: &Type) -> Stack {
-        let mut tys = self.0.clone();
-        tys.push(ty.clone());
-        Stack(tys)
-    }
-
-    fn split_last(&self) -> Option<(&Type, Stack)> {
-        self.0.split_last().map(|(ty, rest)| (ty, Stack::new(rest)))
-    }
-
-    fn take(
-        &self,
-        other: &[Type],
-        generics: &GenericBindings,
-    ) -> Result<(Stack, GenericBindings), String> {
-        match other.split_last() {
-            None => Ok((self.clone(), generics.clone())),
-            Some((other_t, other_prev)) => match self.split_last() {
-                None => Err("Cannot take from empty stack".into()),
-                Some((stack_t, prev)) => {
-                    if let Type::Gen(n) = other_t {
-                        match generics.get(n) {
-                            None => {
-                                prev.take(&other_prev, &generics.insert(n.clone(), stack_t.clone()))
-                            }
-                            Some(bound_t) => {
-                                if bound_t != stack_t {
-                                    return Err(std::format!("Types didn't match"));
-                                }
-                                prev.take(&other_prev, generics)
-                            }
-                        }
-                    } else {
-                        if stack_t != other_t {
-                            return Err(std::format!(
-                                "Types didn't match {:?} {:?}",
-                                stack_t,
-                                other_t
-                            ));
-                        };
-                        prev.take(&other_prev, generics)
-                    }
+fn resolve(fty: &FTy, bindings: &GenBindings) -> Result<FTy, String> {
+    let mut loop_fty = fty;
+    loop {
+        if let FTy::Gen(gen) = loop_fty {
+            if let Some(new_fty) = bindings.get(gen) {
+                if new_fty == fty {
+                    return Err("resolving looped".into());
                 }
-            },
+                loop_fty = new_fty;
+                continue;
+            }
+        }
+        break;
+    }
+    Ok(loop_fty.clone())
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum FTy {
+    T(Ty),
+    Gen(Gen),
+}
+
+impl std::fmt::Debug for FTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::T(arg0) => f.debug_tuple("T").field(arg0).finish(),
+            Self::Gen(arg0) => f
+                .debug_tuple("Gen")
+                .field(&(arg0.deref().deref() as *const ()))
+                .finish(),
         }
     }
 }
 
+impl FTy {
+    pub fn new_gen() -> FTy {
+        FTy::Gen(ByAddress(Rc::new(())))
+    }
+
+    pub fn resolve(self, bindings: &GenBindings) -> Result<FTy, String> {
+        match resolve(&self, bindings)? {
+            FTy::Gen(_) => Ok(self),
+            FTy::T(ty) => Ok(FTy::T(ty.resolve(bindings)?)),
+        }
+    }
+
+    pub fn match_or_bind(&self, stack_fty: FTy, bindings: &mut GenBindings) -> Result<(), String> {
+        match resolve(self, bindings)? {
+            FTy::Gen(gen) => {
+                bindings.insert(gen, stack_fty);
+                Ok(())
+            }
+            FTy::T(ty) => match resolve(&stack_fty, bindings)? {
+                FTy::T(stack_ty) => ty.match_or_bind(&stack_ty, bindings),
+                FTy::Gen(gen) => {
+                    bindings.insert(gen, FTy::T(ty));
+                    Ok(())
+                }
+            },
+        }
+    }
+
+    pub fn as_ty(&self) -> Result<Ty, String> {
+        match self {
+            FTy::T(ty) => Ok(ty.clone()),
+            _ => Err("fty wasn't ty".into()),
+        }
+    }
+}
+
+impl From<Ty> for FTy {
+    fn from(value: Ty) -> Self {
+        FTy::T(value)
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
-    from: Vec<Type>,
-    to: Vec<Type>,
+    from: Vec<FTy>,
+    to: Vec<FTy>,
 }
 
 impl Function {
-    pub fn new(from: &[Type], to: &[Type]) -> Self {
+    pub fn new(from: &[FTy], to: &[FTy]) -> Self {
         Function {
             from: Vec::from(from),
             to: Vec::from(to),
         }
     }
 
-    fn apply(
-        &self,
-        stack: &Stack,
-        generics: &GenericBindings,
-    ) -> Result<(Stack, GenericBindings), String> {
-        let (stack, generics) = stack.take(&self.from, &generics)?;
+    pub fn from(&self) -> &[FTy] {
+        &self.from
+    }
 
-        let mut stack = stack;
-        for ty in self.to.clone() {
-            match ty {
-                Type::Gen(n) => match generics.get(&n) {
-                    None => return Err("generic wasn't bound".into()),
-                    Some(bound_t) => stack = stack.push(&bound_t),
-                },
-                _ => stack = stack.push(&ty),
-            }
+    pub fn to(&self) -> &[FTy] {
+        &self.to
+    }
+
+    fn resolve(self, bindings: &GenBindings) -> Result<Function, String> {
+        let mut from = vec![];
+        for fty in self.from {
+            from.push(resolve(&fty, bindings)?);
         }
 
-        Ok((stack, generics))
+        let mut to = vec![];
+        for fty in self.to {
+            to.push(resolve(&fty, bindings)?);
+        }
+
+        Ok(Function::new(&from, &to))
+    }
+
+    fn match_or_bind(
+        &self,
+        wanted_ty: &Function,
+        bindings: &mut GenBindings,
+    ) -> Result<(), String> {
+        if self.from.len() != wanted_ty.from.len() {
+            return Err("Functions don't have same from length".into());
+        }
+
+        if self.to.len() != wanted_ty.to.len() {
+            return Err("Functions don't have same to length".into());
+        }
+
+        for (self_arg, wanted_arg) in std::iter::zip(self.from.clone(), wanted_ty.from.clone()) {
+            self_arg.match_or_bind(wanted_arg, bindings)?;
+        }
+
+        for (self_arg, wanted_arg) in std::iter::zip(self.to.clone(), wanted_ty.to.clone()) {
+            self_arg.match_or_bind(wanted_arg, bindings)?;
+        }
+
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
+pub enum Ty {
     Bool,
-    Func(Function),
-    Gen(u32),
+    F(Box<Function>),
 }
 
-pub fn typecheck(ast: &Vec<AstNode>) -> Result<Stack, String> {
-    let mut stack: Stack = Stack::new(&[]);
-    let mut context = initial_context();
-
-    for node in ast {
-        match node {
-            AstNode::Id(id) => match context.get(id.as_str()) {
-                Some(ft) => {
-                    let generics = GenericBindings::new();
-
-                    (stack, _) = ft.apply(&stack, &generics)?;
-
-                    println!("# {}\t {:?}", id, stack);
-                }
-                None => return Err("Identifier not in context".into()),
-            },
-            AstNode::Quote(id) => match context.get(id.as_str()) {
-                Some(ft) => {
-                    stack = stack.push(&Type::Func(ft.clone()));
-
-                    println!("# {}\t {:?}", id, stack);
-                }
-                None => return Err("Identifier not in context".into()),
-            },
-            AstNode::Apply => match stack.split_last() {
-                Some((Type::Func(ft), stack_rest)) => {
-                    let generics = GenericBindings::new();
-
-                    (stack, _) = ft.apply(&stack_rest, &generics)?;
-
-                    println!("# {}\t {:?}", "!", stack);
-                }
-                _ => return Err("Top of stack is not a function".into()),
-            },
-            AstNode::Bind(id) => match stack.split_last() {
-                Some((Type::Func(ft), stack_rest)) => {
-                    context.insert(id.clone(), ft.clone());
-
-                    stack = stack_rest;
-                    println!("# ${}\t {:?}", id, stack);
-                    println!("# bound: {:?}", context.get(id).unwrap());
-                }
-                _ => return Err("Cannot only bind a function".into()),
-            },
+impl Ty {
+    pub fn resolve(self, bindings: &GenBindings) -> Result<Ty, String> {
+        match self {
+            Ty::F(f) => Ok(Ty::F(Box::new(f.resolve(bindings)?))),
+            _ => Ok(self.clone()),
         }
     }
 
-    println!("# {:?}", context);
-
-    Ok(stack)
-}
-
-#[test]
-fn test_bool_and() {
-    let ast = vec![
-        AstNode::Id("True".to_string()),
-        AstNode::Id("True".to_string()),
-        AstNode::Id("and".to_string()),
-    ];
-    let stack = typecheck(&ast).unwrap();
-    assert_eq!(stack, Stack::new(&[Type::Bool]))
+    fn match_or_bind(&self, wanted_ty: &Ty, bindings: &mut GenBindings) -> Result<(), String> {
+        match self {
+            Self::F(f) => {
+                if let Ty::F(other_f) = wanted_ty {
+                    f.match_or_bind(other_f, bindings)
+                } else {
+                    Err(std::format!(
+                        "Types didn't match {:?} {:?}",
+                        self,
+                        wanted_ty
+                    ))
+                }
+            }
+            _ => {
+                if self != wanted_ty {
+                    Err(std::format!(
+                        "Types didn't match {:?} {:?}",
+                        self,
+                        wanted_ty
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+    }
 }

@@ -1,4 +1,9 @@
-identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+integer = @{ ASCII_DIGIT+ }
+
+arity = ${ integer ~ "->" ~ integer }
+
+open_func  = { "(" }
+close_func = { ")" }
 
 apply = { "!" }
 
@@ -6,15 +11,22 @@ quote = ${ "'" ~ identifier? }
 
 bind = ${ "$" ~ identifier }
 
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+
 /// literal has precedence before identifier
 expression = _{
-    apply
+    arity
+  | open_func
+  | close_func
+  | apply
   | quote
   | bind
   | identifier
 }
 
-program = _{ SOI ~ expression* ~ EOI }
+program = _{
+    SOI ~ expression* ~ EOI
+}
 
 WHITESPACE = _{ NEWLINE | WHITE_SPACE }
 COMMENT    = _{ "#" ~ (!"\n" ~ ANY)* }
