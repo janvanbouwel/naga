@@ -2,6 +2,8 @@ use nagalang::{ast::parse, compile::compile, typecheck::typecheck};
 
 fn main() {
     let source = " 
+    5 1 add
+    9 5 sub
     ( ( not ) 'id ? ! ) $xor
     ( xor not ) $xnor
     True dup xor

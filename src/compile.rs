@@ -2,6 +2,10 @@ use std::collections::HashMap;
 
 use crate::ast::{AstNode, StackMod};
 
+fn append(value: &str) -> String {
+    std::format!("stack.append({value})")
+}
+
 pub fn compile(ast: &Vec<AstNode>) -> Result<String, &str> {
     let mut fd_stack: Vec<Vec<String>> = vec![];
     let mut code: Vec<String> = vec!["stack = []".into()];
@@ -18,20 +22,21 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, &str> {
                     None => return Err("did not find identifier in context"),
                 },
                 StackMod::Quote(id) => match store.get(id) {
-                    Some(res) => code.push(std::format!("stack.append(lambda: [{}])", res)),
+                    Some(res) => code.push(append(&std::format!("lambda: [{res}]"))),
                     None => return Err("did not find identifier in context"),
                 },
                 StackMod::Bind(id) => {
                     store.insert(id.clone(), std::format!("__{id}()"));
                     code.push(std::format!("__{} = stack.pop()", id))
                 }
+                StackMod::Int(int) => code.push(append(int)),
             },
             AstNode::OpenFunc => fd_stack.push(std::mem::replace(&mut code, vec![])),
             AstNode::CloseFunc => {
                 let res = std::mem::replace(&mut code, fd_stack.pop().unwrap())
                     .join(",\n")
                     .replace("\n", "\n\t");
-                code.push(std::format!("stack.append(lambda: [\n\t{res}\n])"))
+                code.push(append(&std::format!("lambda: [\n\t{res}\n]")))
             }
         }
     }
@@ -42,6 +47,7 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, &str> {
 }
 
 fn builtins_code() -> HashMap<String, String> {
+    let op = |f: &str| append(&std::format!("stack.pop(-2) {f} stack.pop()"));
     [
         ("'".to_string(), "".to_string()),
         ("id".to_string(), "".to_string()),
@@ -49,22 +55,15 @@ fn builtins_code() -> HashMap<String, String> {
             "?".to_string(),
             "stack.pop() if stack.pop(-3) else stack.pop(-2)".to_string(),
         ),
-        ("True".to_string(), "stack.append(True)".to_string()),
-        ("False".to_string(), "stack.append(False)".to_string()),
-        (
-            "and".to_string(),
-            "stack.append(stack.pop() and stack.pop())".to_string(),
-        ),
-        (
-            "not".to_string(),
-            "stack.append(not stack.pop())".to_string(),
-        ),
-        ("dup".to_string(), "stack.append(stack[-1])".to_string()),
+        ("True".to_string(), append("True")),
+        ("False".to_string(), append("False")),
+        ("and".to_string(), op("and")),
+        ("not".to_string(), append("not stack.pop()")),
+        ("dup".to_string(), append("stack[-1]")),
         ("drop".to_string(), "stack.pop()".to_string()),
-        (
-            "eq".to_string(),
-            "stack.append(stack.pop() == stack.pop())".to_string(),
-        ),
+        ("eq".to_string(), op("==")),
+        ("add".to_string(), op("+")),
+        ("sub".to_string(), op("-")),
     ]
     .into()
 }

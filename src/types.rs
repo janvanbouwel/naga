@@ -152,6 +152,7 @@ impl Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ty {
     Bool,
+    Int,
     F(Box<Function>),
 }
 

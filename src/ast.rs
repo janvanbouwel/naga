@@ -15,6 +15,7 @@ pub enum AstNode {
 #[derive(Debug)]
 pub enum StackMod {
     Id(String),
+    Int(String),
     Arity(u32, u32),
     Quote(String),
     Bind(String),
@@ -40,6 +41,7 @@ pub fn parse(source: &str) -> Result<Vec<AstNode>, Box<Error<Rule>>> {
                 let to: u32 = inner.next().unwrap().as_str().parse().unwrap();
                 ast.push(StackMod::Arity(from, to).into());
             }
+            Rule::integer => ast.push(StackMod::Int(pair.as_str().into()).into()),
             Rule::open_func => ast.push(AstNode::OpenFunc),
             Rule::close_func => ast.push(AstNode::CloseFunc),
             Rule::apply => ast.push(StackMod::Apply.into()),

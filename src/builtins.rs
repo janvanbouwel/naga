@@ -64,5 +64,9 @@ pub fn initial_context() -> Store {
         }),
     );
 
+    let math = Rc::new(|| Function::new(&[Ty::Int.into(), Ty::Int.into()], &[Ty::Int.into()]));
+    types.insert("add".to_string(), math.clone());
+    types.insert("sub".to_string(), math.clone());
+
     types
 }

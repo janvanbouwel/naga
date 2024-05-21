@@ -16,6 +16,7 @@ identifier = @{ "?" | (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")*) }
 /// literal has precedence before identifier
 expression = _{
     arity
+  | integer
   | open_func
   | close_func
   | apply

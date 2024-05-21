@@ -306,6 +306,7 @@ fn mod_stack(
             println!("# ${}\t {:?}", id, stack);
             println!("# bound: {:?}", store.get(id).unwrap()());
         }
+        StackMod::Int(_) => stack.apply(Function::new(&[], &[Ty::Int.into()]))?,
     }
     Ok(())
 }
