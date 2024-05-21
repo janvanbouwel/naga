@@ -58,6 +58,10 @@ fn builtins_code() -> HashMap<String, String> {
             "eq".to_string(),
             "stack.append(stack.pop() == stack.pop())".to_string(),
         ),
+        (
+            "test".to_string(),
+            "stack.pop() if stack.pop(-3) else stack.pop(-2)".to_string(),
+        ),
     ]
     .into()
 }

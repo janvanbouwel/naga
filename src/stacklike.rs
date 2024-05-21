@@ -111,7 +111,8 @@ pub struct FuncDef {
 }
 
 impl FuncDef {
-    pub fn collect(self) -> Function {
+    pub fn collect(mut self) -> Function {
+        self.from.0.reverse();
         Function::new(
             &[],
             &[FTy::T(Ty::F(Box::new(Function::new(

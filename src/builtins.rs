@@ -53,6 +53,13 @@ pub fn initial_context() -> Store {
             Function::new(&[gen.clone(), gen.clone()], &[Ty::Bool.into()])
         }),
     );
+    types.insert(
+        "test".into(),
+        Rc::new(|| {
+            let gen = FTy::new_gen();
+            Function::new(&[Ty::Bool.into(), gen.clone(), gen.clone()], &[gen.clone()])
+        }),
+    );
 
     types
 }
