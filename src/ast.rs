@@ -44,7 +44,7 @@ pub fn parse(source: &str) -> Result<Vec<AstNode>, Box<Error<Rule>>> {
             Rule::close_func => ast.push(AstNode::CloseFunc),
             Rule::apply => ast.push(StackMod::Apply.into()),
             Rule::quote => match pair.into_inner().next() {
-                None => ast.push(StackMod::Quote("id".into()).into()),
+                None => ast.push(StackMod::Quote("'".into()).into()),
                 Some(pair) => ast.push(StackMod::Quote(pair.as_str().into()).into()),
             },
             Rule::bind => {

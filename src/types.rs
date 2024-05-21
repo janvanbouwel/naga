@@ -124,6 +124,11 @@ impl Function {
         wanted_ty: &Function,
         bindings: &mut GenBindings,
     ) -> Result<(), String> {
+        // if self.from.len().overflowing_sub(wanted_ty.from.len())
+        //     != self.to.len().overflowing_sub(wanted_ty.to.len())
+        // {
+        //     return Err("Functions have incompatible length".into());
+        // }
         if self.from.len() != wanted_ty.from.len() {
             return Err("Functions don't have same from length".into());
         }

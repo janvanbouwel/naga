@@ -1,8 +1,8 @@
 use nagalang::{ast::parse, compile::compile, typecheck::typecheck};
 
 fn main() {
-    let source = "# hello  
-    ( ( not ) ( id ) test ! ) $xor
+    let source = " 
+    ( ( not ) 'id ? ! ) $xor
     ( xor not ) $xnor
     True dup xor
     True dup xnor";

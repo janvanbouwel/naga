@@ -18,7 +18,7 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, &str> {
                     None => return Err("did not find identifier in context"),
                 },
                 StackMod::Quote(id) => match store.get(id) {
-                    Some(res) => code.push(std::format!("stack.append(lambda: {})", res)),
+                    Some(res) => code.push(std::format!("stack.append(lambda: [{}])", res)),
                     None => return Err("did not find identifier in context"),
                 },
                 StackMod::Bind(id) => {
@@ -28,8 +28,10 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, &str> {
             },
             AstNode::OpenFunc => fd_stack.push(std::mem::replace(&mut code, vec![])),
             AstNode::CloseFunc => {
-                let res = std::mem::replace(&mut code, fd_stack.pop().unwrap()).join(", ");
-                code.push(std::format!("stack.append(lambda: [{res}])"))
+                let res = std::mem::replace(&mut code, fd_stack.pop().unwrap())
+                    .join(",\n")
+                    .replace("\n", "\n\t");
+                code.push(std::format!("stack.append(lambda: [\n\t{res}\n])"))
             }
         }
     }
@@ -41,6 +43,12 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, &str> {
 
 fn builtins_code() -> HashMap<String, String> {
     [
+        ("'".to_string(), "".to_string()),
+        ("id".to_string(), "".to_string()),
+        (
+            "?".to_string(),
+            "stack.pop() if stack.pop(-3) else stack.pop(-2)".to_string(),
+        ),
         ("True".to_string(), "stack.append(True)".to_string()),
         ("False".to_string(), "stack.append(False)".to_string()),
         (
@@ -51,16 +59,11 @@ fn builtins_code() -> HashMap<String, String> {
             "not".to_string(),
             "stack.append(not stack.pop())".to_string(),
         ),
-        ("id".to_string(), "".to_string()),
         ("dup".to_string(), "stack.append(stack[-1])".to_string()),
         ("drop".to_string(), "stack.pop()".to_string()),
         (
             "eq".to_string(),
             "stack.append(stack.pop() == stack.pop())".to_string(),
-        ),
-        (
-            "test".to_string(),
-            "stack.pop() if stack.pop(-3) else stack.pop(-2)".to_string(),
         ),
     ]
     .into()
