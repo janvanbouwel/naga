@@ -11,7 +11,7 @@ quote = ${ "'" ~ identifier? }
 
 bind = ${ "$" ~ identifier }
 
-identifier = @{ "?" | (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")*) }
+identifier = @{ "?" | "=" | (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")*) }
 
 /// literal has precedence before identifier
 expression = _{

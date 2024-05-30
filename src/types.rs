@@ -1,4 +1,5 @@
 use by_address::ByAddress;
+use either::Either;
 
 use std::ops::Deref;
 use std::{collections::HashMap, rc::Rc};
@@ -6,6 +7,7 @@ use std::{collections::HashMap, rc::Rc};
 pub type Gen = ByAddress<Rc<()>>;
 
 pub type GenBindings = HashMap<Gen, FTy>;
+pub type GenReplace = HashMap<Gen, Gen>;
 
 fn resolve(fty: &FTy, bindings: &GenBindings) -> Result<FTy, String> {
     let mut loop_fty = fty;
@@ -22,6 +24,37 @@ fn resolve(fty: &FTy, bindings: &GenBindings) -> Result<FTy, String> {
         break;
     }
     Ok(loop_fty.clone())
+}
+
+fn resolve_and_pop(
+    fty: &Gen,
+    bindings: &mut GenBindings,
+) -> Result<Either<Gen, (Gen, Ty)>, String> {
+    let mut key: Gen = fty.clone();
+
+    loop {
+        if let Some(new_fty) = bindings.get(&key) {
+            match new_fty {
+                FTy::T(_) => break,
+                FTy::Gen(new_gen) => {
+                    if new_gen == fty {
+                        return Err("resolving looped".into());
+                    }
+                    key = new_gen.clone();
+                    continue;
+                }
+            }
+        }
+
+        break;
+    }
+
+    Ok(match bindings.remove(&key) {
+        Some(FTy::T(ty)) => Either::Right((key.clone(), ty)),
+        None => Either::Left(key.clone()),
+        _ => unreachable!(),
+    })
+    // Ok(key.clone())
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -54,18 +87,29 @@ impl FTy {
         }
     }
 
-    pub fn match_or_bind(&self, stack_fty: FTy, bindings: &mut GenBindings) -> Result<(), String> {
-        match resolve(self, bindings)? {
-            FTy::Gen(gen) => {
-                bindings.insert(gen, stack_fty);
-                Ok(())
-            }
-            FTy::T(ty) => match resolve(&stack_fty, bindings)? {
-                FTy::T(stack_ty) => ty.match_or_bind(&stack_ty, bindings),
-                FTy::Gen(gen) => {
-                    bindings.insert(gen, FTy::T(ty));
-                    Ok(())
+    pub fn match_or_bind(self, other_fty: FTy, bindings: &mut GenBindings) -> Result<FTy, String> {
+        match self {
+            FTy::Gen(gen) => match resolve_and_pop(&gen, bindings)? {
+                Either::Left(resolved_gen) => {
+                    bindings.insert(resolved_gen, other_fty.clone());
+                    Ok(other_fty)
                 }
+                Either::Right((key, ty)) => match other_fty {
+                    FTy::T(other_ty) => {
+                        let new_fty = FTy::T(ty.match_or_bind(other_ty, bindings)?);
+                        bindings.insert(key, new_fty.clone());
+                        Ok(new_fty)
+                    }
+                    FTy::Gen(_) => {
+                        let new_fty = other_fty.match_or_bind(FTy::T(ty), bindings)?;
+                        bindings.insert(key, new_fty.clone());
+                        Ok(new_fty)
+                    }
+                },
+            },
+            FTy::T(ty) => match other_fty {
+                FTy::T(stack_ty) => Ok(FTy::T(ty.match_or_bind(stack_ty, bindings)?)),
+                FTy::Gen(_) => other_fty.match_or_bind(FTy::T(ty), bindings),
             },
         }
     }
@@ -119,33 +163,42 @@ impl Function {
         Ok(Function::new(&from, &to))
     }
 
-    fn match_or_bind(
-        &self,
-        wanted_ty: &Function,
+    fn least_upper_bound(
+        self,
+        wanted_ty: Function,
         bindings: &mut GenBindings,
-    ) -> Result<(), String> {
-        // if self.from.len().overflowing_sub(wanted_ty.from.len())
-        //     != self.to.len().overflowing_sub(wanted_ty.to.len())
-        // {
-        //     return Err("Functions have incompatible length".into());
-        // }
-        if self.from.len() != wanted_ty.from.len() {
-            return Err("Functions don't have same from length".into());
+    ) -> Result<Function, String> {
+        if self.from.len().overflowing_sub(wanted_ty.from.len())
+            != self.to.len().overflowing_sub(wanted_ty.to.len())
+        {
+            return Err("Functions have incompatible length".into());
         }
 
-        if self.to.len() != wanted_ty.to.len() {
-            return Err("Functions don't have same to length".into());
+        let mut from: Vec<FTy> = vec![];
+
+        for pair in itertools::Itertools::zip_longest(self.from.into_iter(), wanted_ty.from) {
+            match pair {
+                itertools::EitherOrBoth::Both(self_arg, wanted_arg) => {
+                    from.push(self_arg.match_or_bind(wanted_arg, bindings)?)
+                }
+                itertools::EitherOrBoth::Left(arg) => from.push(arg),
+                itertools::EitherOrBoth::Right(arg) => from.push(arg),
+            }
         }
 
-        for (self_arg, wanted_arg) in std::iter::zip(self.from.clone(), wanted_ty.from.clone()) {
-            self_arg.match_or_bind(wanted_arg, bindings)?;
+        let mut to: Vec<FTy> = vec![];
+
+        for pair in itertools::Itertools::zip_longest(self.to.into_iter(), wanted_ty.to) {
+            match pair {
+                itertools::EitherOrBoth::Both(self_arg, wanted_arg) => {
+                    to.push(self_arg.match_or_bind(wanted_arg, bindings)?)
+                }
+                itertools::EitherOrBoth::Left(arg) => to.push(arg),
+                itertools::EitherOrBoth::Right(arg) => to.push(arg),
+            }
         }
 
-        for (self_arg, wanted_arg) in std::iter::zip(self.to.clone(), wanted_ty.to.clone()) {
-            self_arg.match_or_bind(wanted_arg, bindings)?;
-        }
-
-        Ok(())
+        Ok(Function::new(&from, &to))
     }
 }
 
@@ -164,15 +217,15 @@ impl Ty {
         }
     }
 
-    fn match_or_bind(&self, wanted_ty: &Ty, bindings: &mut GenBindings) -> Result<(), String> {
+    fn match_or_bind(self, wanted_ty: Ty, bindings: &mut GenBindings) -> Result<Ty, String> {
         match self {
             Self::F(f) => {
                 if let Ty::F(other_f) = wanted_ty {
-                    f.match_or_bind(other_f, bindings)
+                    Ok(Ty::F(Box::new(f.least_upper_bound(*other_f, bindings)?)))
                 } else {
                     Err(std::format!(
                         "Types didn't match {:?} {:?}",
-                        self,
+                        Ty::F(f),
                         wanted_ty
                     ))
                 }
@@ -185,7 +238,7 @@ impl Ty {
                         wanted_ty
                     ))
                 } else {
-                    Ok(())
+                    Ok(wanted_ty)
                 }
             }
         }

@@ -39,25 +39,7 @@ pub fn initial_context() -> Store {
     );
 
     types.insert(
-        "True".to_string(),
-        Rc::new(|| Function::new(&[], &[Ty::Bool.into()])),
-    );
-
-    types.insert(
-        "False".to_string(),
-        Rc::new(|| Function::new(&[], &[Ty::Bool.into()])),
-    );
-    types.insert(
-        "and".to_string(),
-        Rc::new(|| Function::new(&[Ty::Bool.into(), Ty::Bool.into()], &[Ty::Bool.into()])),
-    );
-    types.insert(
-        "not".to_string(),
-        Rc::new(|| Function::new(&[Ty::Bool.into()], &[Ty::Bool.into()])),
-    );
-
-    types.insert(
-        "eq".to_string(),
+        "=".to_string(),
         Rc::new(|| {
             let gen = FTy::new_gen();
             Function::new(&[gen.clone(), gen.clone()], &[Ty::Bool.into()])

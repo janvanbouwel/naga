@@ -34,17 +34,18 @@ impl Stack {
         self.0.pop()
     }
 
-    fn take_one(&mut self, fty: &FTy, bindings: &mut GenBindings) -> Result<(), String> {
+    fn take_one(&mut self, fty: FTy, bindings: &mut GenBindings) -> Result<(), String> {
         let stack_ty = self
             .pop()
             .ok_or("Cannot take from empty stack".to_string())?;
 
-        fty.match_or_bind(stack_ty.clone().into(), bindings)
+        fty.match_or_bind(stack_ty.clone().into(), bindings)?;
+        Ok(())
     }
 
     fn take_all(&mut self, types: &[FTy], bindings: &mut GenBindings) -> Result<(), String> {
         if let Some((ty, tys)) = types.split_last() {
-            self.take_one(ty, bindings)?;
+            self.take_one(ty.clone(), bindings)?;
             self.take_all(tys, bindings)
         } else {
             Ok(())
@@ -124,7 +125,10 @@ impl FuncDef {
 
     fn take_one(&mut self, fty: FTy, bindings: &mut GenBindings) -> Result<(), String> {
         match self.to.pop() {
-            Some(stack_ty) => fty.match_or_bind(stack_ty.clone(), bindings),
+            Some(stack_ty) => {
+                fty.match_or_bind(stack_ty.clone(), bindings)?;
+                Ok(())
+            }
             None => {
                 self.from.push(fty);
                 Ok(())
@@ -172,17 +176,12 @@ pub trait Context: Sized {
 }
 
 enum ContextType {
-    Exec(ExecContext),
     FD(FDContext),
 }
 
 impl Context for ContextType {
     fn check_node(self, node: &AstNode) -> Result<Either<ContextType, Function>, String> {
         match self {
-            ContextType::Exec(exec) => match exec.check_node(node)? {
-                Either::Left(ctx) => Ok(Left(Self::Exec(ctx))),
-                Either::Right(f) => Ok(Right(f)),
-            },
             ContextType::FD(fd) => match fd.check_node(node)? {
                 Either::Left(ctx) => Ok(Left(Self::FD(ctx))),
                 Either::Right(f) => Ok(Right(f)),
@@ -210,7 +209,7 @@ pub type ExecContext = BaseContext<Stack>;
 
 impl Context for ExecContext {
     fn check_node(mut self, node: &AstNode) -> Result<Either<ExecContext, Function>, String> {
-        match std::mem::replace(&mut self.child_context, None) {
+        match self.child_context.take() {
             Some(ctx) => match ctx.check_node(node)? {
                 Left(new_ctx) => self.child_context = Some(Box::new(new_ctx)),
                 Right(f) => {
@@ -235,7 +234,7 @@ pub type FDContext = BaseContext<FuncDef>;
 
 impl Context for FDContext {
     fn check_node(mut self, node: &AstNode) -> Result<Either<FDContext, Function>, String> {
-        match std::mem::replace(&mut self.child_context, None) {
+        match self.child_context.take() {
             Some(ctx) => match ctx.check_node(node)? {
                 Left(new_ctx) => self.child_context = Some(Box::new(new_ctx)),
                 Right(f) => {
