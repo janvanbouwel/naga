@@ -4,7 +4,7 @@ use either::Either::{self, Left, Right};
 
 use crate::{
     ast::{AstNode, StackMod},
-    types::{FTy, Function, GenBindings, Ty},
+    types::{Bound, FTy, Function, GenBindings, GenOrTy, Ty},
 };
 
 pub type Store = HashMap<String, Rc<dyn Fn() -> Function>>;
@@ -39,7 +39,7 @@ impl Stack {
             .pop()
             .ok_or("Cannot take from empty stack".to_string())?;
 
-        fty.match_or_bind(stack_ty.clone().into(), bindings)?;
+        fty.merge(FTy::B(Bound::from_lower(stack_ty)), bindings)?;
         Ok(())
     }
 
@@ -60,8 +60,9 @@ impl StackLike for Stack {
 
         println!("# bindings {bindings:?}");
 
-        for ftype in function.to() {
-            self.push(ftype.clone().resolve(&bindings)?.as_ty().unwrap());
+        for fty in function.to() {
+            self.push(fty.clone().resolve_gen(&bindings)?.as_bound()?.as_ty()?);
+            // self.push(ftype.clone().resolve(&bindings)?.as_ty().unwrap());
             println!("# {self:?}");
         }
 
@@ -81,8 +82,8 @@ impl StackLike for Stack {
 struct FDStack(Vec<FTy>);
 
 impl FDStack {
-    fn push(&mut self, ty: FTy) {
-        self.0.push(ty);
+    fn push(&mut self, fty: FTy) {
+        self.0.push(fty);
     }
 
     fn pop(&mut self) -> Option<FTy> {
@@ -92,15 +93,59 @@ impl FDStack {
     fn replace(&mut self, bindings: &GenBindings) -> Result<(), String> {
         for fty in self.0.iter_mut() {
             match fty {
-                FTy::Gen(gen) => {
-                    if let Some(new_fty) = bindings.get(gen) {
-                        *fty = new_fty.clone()
+                FTy::Gen(_gen) => match fty.clone().resolve_gen(bindings)? {
+                    FTy::B(mut bound) => {
+                        if bound.upper.is_some() {
+                            unreachable!(
+                                "{}",
+                                std::format!("funcdef from has upper bound: {bound:?}")
+                            )
+                        }
+                        if bound.lower.is_none() {
+                            unreachable!("more uh oh")
+                        }
+                        std::mem::swap(&mut bound.upper, &mut bound.lower);
+                        *fty = FTy::B(bound);
                     }
-                }
-                FTy::T(ty) => *ty = ty.clone().resolve(bindings)?,
+                    FTy::Gen(new_gen) => *fty = FTy::Gen(new_gen),
+                },
+                FTy::B(_) => {}
             }
+            // *fty = fty.clone().resolve_gen(bindings)?;
         }
         Ok(())
+    }
+
+    fn collect_from(mut self) -> Vec<FTy> {
+        self.0.reverse();
+        for fty in self.0.iter_mut() {
+            if let FTy::B(bound) = fty {
+                if bound.lower.is_some() {
+                    unreachable!(
+                        "{}",
+                        std::format!("funcdef from has lower bound: {bound:?}")
+                    )
+                }
+                if bound.upper.is_none() {
+                    unreachable!("more uh oh")
+                }
+            }
+        }
+        self.0
+    }
+
+    fn collect_to(mut self) -> Vec<FTy> {
+        for fty in self.0.iter_mut() {
+            if let FTy::B(bound) = fty {
+                if bound.upper.is_some() {
+                    unreachable!("{}", std::format!("idk {bound:?}"))
+                }
+                if bound.lower.is_none() {
+                    unreachable!("more uh oh")
+                }
+            }
+        }
+        self.0
     }
 }
 
@@ -112,13 +157,12 @@ pub struct FuncDef {
 }
 
 impl FuncDef {
-    pub fn collect(mut self) -> Function {
-        self.from.0.reverse();
-        Function::new(
+    pub fn collect(self) -> Function {
+        Function::from_fty(
             &[],
-            &[FTy::T(Ty::F(Box::new(Function::new(
-                &self.from.0,
-                &self.to.0,
+            &[GenOrTy::T(Ty::F(Box::new(Function::new(
+                self.from.collect_from(),
+                self.to.collect_to(),
             ))))],
         )
     }
@@ -126,11 +170,11 @@ impl FuncDef {
     fn take_one(&mut self, fty: FTy, bindings: &mut GenBindings) -> Result<(), String> {
         match self.to.pop() {
             Some(stack_ty) => {
-                fty.match_or_bind(stack_ty.clone(), bindings)?;
+                fty.merge(stack_ty, bindings)?;
                 Ok(())
             }
             None => {
-                self.from.push(fty);
+                self.from.push(fty.clone());
                 Ok(())
             }
         }
@@ -155,19 +199,21 @@ impl StackLike for FuncDef {
 
         println!("# bindings: {bindings:?}");
         self.from.replace(&bindings)?;
-        for ftype in function.to() {
-            self.to.push(ftype.clone().resolve(&bindings)?);
+        for fty in function.to() {
+            self.to.push(fty.clone().resolve_gen(&bindings)?);
         }
 
         Ok(())
     }
 
     fn pop_function(&mut self) -> Result<Function, String> {
-        if let Some(FTy::T(Ty::F(f))) = self.to.pop() {
-            Ok(*f)
-        } else {
-            Err("Top of stack was not function".into())
+        // if let Some(GenOrTy::T(Ty::F(f))) = self.to.pop() {
+        if let Some(FTy::B(bound)) = self.to.pop() {
+            if let Ty::F(f) = bound.as_ty()? {
+                return Ok(*f);
+            }
         }
+        Err("Top of stack was not function".into())
     }
 }
 
@@ -266,13 +312,13 @@ fn mod_stack(
         StackMod::Arity(from, to) => {
             println!("# arity from {} to {}", from, to);
 
-            let from_t: Vec<FTy> = (0..*from).map(|_| FTy::new_gen()).collect();
-            let to_t: Vec<FTy> = (*from..(from + to)).map(|_| FTy::new_gen()).collect();
-            let wanted_f = Ty::F(Box::new(Function::new(&from_t, &to_t)));
+            let from_t: Vec<GenOrTy> = (0..*from).map(|_| GenOrTy::new_gen()).collect();
+            let to_t: Vec<GenOrTy> = (*from..(from + to)).map(|_| GenOrTy::new_gen()).collect();
+            let wanted_f = Ty::F(Box::new(Function::from_fty(&from_t, &to_t)));
 
             println!("# {:?}", wanted_f);
 
-            stack.apply(Function::new(
+            stack.apply(Function::from_fty(
                 &[wanted_f.clone().into()],
                 &[wanted_f.clone().into()],
             ))?;
@@ -287,7 +333,10 @@ fn mod_stack(
         },
         StackMod::Quote(id) => match store.get(id.as_str()) {
             Some(ft) => {
-                stack.apply(Function::new(&[], &[FTy::T(Ty::F(Box::new(ft())))]))?;
+                stack.apply(Function::from_fty(
+                    &[],
+                    &[GenOrTy::T(Ty::F(Box::new(ft())))],
+                ))?;
 
                 println!("# '{}\t {:?}", id, stack);
             }
@@ -305,7 +354,7 @@ fn mod_stack(
             println!("# ${}\t {:?}", id, stack);
             println!("# bound: {:?}", store.get(id).unwrap()());
         }
-        StackMod::Int(_) => stack.apply(Function::new(&[], &[Ty::Int.into()]))?,
+        StackMod::Int(_) => stack.apply(Function::from_fty(&[], &[Ty::Int.into()]))?,
     }
     Ok(())
 }

@@ -1,41 +1,132 @@
 use by_address::ByAddress;
 use either::Either;
 
+use std::iter::zip;
 use std::ops::Deref;
+
 use std::{collections::HashMap, rc::Rc};
 
 pub type Gen = ByAddress<Rc<()>>;
 
-pub type GenBindings = HashMap<Gen, FTy>;
-pub type GenReplace = HashMap<Gen, Gen>;
+fn new_gen() -> Gen {
+    ByAddress(Rc::new(()))
+}
 
-fn resolve(fty: &FTy, bindings: &GenBindings) -> Result<FTy, String> {
-    let mut loop_fty = fty;
-    loop {
-        if let FTy::Gen(gen) = loop_fty {
-            if let Some(new_fty) = bindings.get(gen) {
-                if new_fty == fty {
-                    return Err("resolving looped".into());
+pub type GenBindings = HashMap<Gen, FTy>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Bound {
+    pub upper: Option<Ty>,
+    pub lower: Option<Ty>,
+}
+
+impl Bound {
+    fn from_upper(ty: Ty) -> Bound {
+        Bound {
+            upper: Some(ty),
+            lower: None,
+        }
+    }
+
+    pub fn from_lower(ty: Ty) -> Bound {
+        Bound {
+            upper: None,
+            lower: Some(ty),
+        }
+    }
+
+    fn upper(&mut self, ty: Ty, bindings: &mut GenBindings) -> Result<(), String> {
+        match self.upper.take() {
+            Some(ub) => self.lower = Some(ub.greatest_lower_bound(ty, bindings)?),
+            None => self.upper = Some(ty),
+        }
+        self.clone().sound(bindings)
+    }
+
+    fn lower(&mut self, ty: Ty, bindings: &mut GenBindings) -> Result<(), String> {
+        match self.lower.take() {
+            Some(lb) => self.lower = Some(lb.least_upper_bound(ty, bindings)?),
+            None => self.lower = Some(ty),
+        }
+        self.clone().sound(bindings)
+    }
+
+    fn merge(&mut self, bound: Bound, bindings: &mut GenBindings) -> Result<(), String> {
+        if let Some(ty) = bound.upper {
+            self.upper(ty, bindings)?;
+        }
+
+        if let Some(ty) = bound.lower {
+            self.lower(ty, bindings)?;
+        }
+
+        self.clone().sound(bindings)
+    }
+
+    pub fn resolve_gen(self, bindings: &GenBindings) -> Result<Bound, String> {
+        Ok(Bound {
+            upper: self.upper.map(|ub| ub.resolve_gen(bindings)).transpose()?,
+            lower: self.lower.map(|lb| lb.resolve_gen(bindings)).transpose()?,
+        })
+    }
+
+    pub fn as_ty(self) -> Result<Ty, String> {
+        match self.lower {
+            Some(ty) => Ok(ty),
+            None => Err("No lower bound".into()),
+        }
+    }
+
+    fn sound(self, bindings: &mut GenBindings) -> Result<(), String> {
+        if let Some(ub) = self.upper {
+            if let Some(lb) = self.lower {
+                let lub = ub
+                    .clone()
+                    .least_upper_bound(lb, bindings)?
+                    .resolve_gen(bindings)?;
+                let rub = ub.clone().resolve_gen(bindings)?;
+
+                if rub != lub {
+                    return Err("not sound".into());
                 }
-                loop_fty = new_fty;
-                continue;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn resolve(gen: &Gen, bindings: &GenBindings) -> Result<FTy, String> {
+    let mut key = gen;
+    loop {
+        if let Some(fty) = bindings.get(key) {
+            match fty {
+                FTy::B(_bound) => return Ok(fty.clone()),
+                FTy::Gen(new_key) => {
+                    if new_key == gen {
+                        return Err(std::format!(
+                            "resolving looped key {gen:?} bindings {bindings:?}"
+                        ));
+                    }
+                    key = new_key;
+                    continue;
+                }
             }
         }
         break;
     }
-    Ok(loop_fty.clone())
+    Ok(FTy::Gen(key.clone()))
 }
 
 fn resolve_and_pop(
     fty: &Gen,
     bindings: &mut GenBindings,
-) -> Result<Either<Gen, (Gen, Ty)>, String> {
+) -> Result<Either<Gen, (Gen, Bound)>, String> {
     let mut key: Gen = fty.clone();
 
     loop {
         if let Some(new_fty) = bindings.get(&key) {
             match new_fty {
-                FTy::T(_) => break,
+                FTy::B(_) => break,
                 FTy::Gen(new_gen) => {
                     if new_gen == fty {
                         return Err("resolving looped".into());
@@ -50,23 +141,41 @@ fn resolve_and_pop(
     }
 
     Ok(match bindings.remove(&key) {
-        Some(FTy::T(ty)) => Either::Right((key.clone(), ty)),
+        Some(FTy::B(ty)) => Either::Right((key.clone(), ty)),
         None => Either::Left(key.clone()),
         _ => unreachable!(),
     })
     // Ok(key.clone())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GenOrTy {
+    T(Ty),
+    Gen(Gen),
+}
+
+impl GenOrTy {
+    pub fn new_gen() -> GenOrTy {
+        GenOrTy::Gen(new_gen())
+    }
+}
+
+impl From<Ty> for GenOrTy {
+    fn from(value: Ty) -> Self {
+        GenOrTy::T(value)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum FTy {
-    T(Ty),
+    B(Bound),
     Gen(Gen),
 }
 
 impl std::fmt::Debug for FTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::T(arg0) => f.debug_tuple("T").field(arg0).finish(),
+            Self::B(arg0) => f.debug_tuple("B").field(arg0).finish(),
             Self::Gen(arg0) => f
                 .debug_tuple("Gen")
                 .field(&(arg0.deref().deref() as *const ()))
@@ -77,56 +186,81 @@ impl std::fmt::Debug for FTy {
 
 impl FTy {
     pub fn new_gen() -> FTy {
-        FTy::Gen(ByAddress(Rc::new(())))
+        FTy::Gen(new_gen())
     }
 
-    pub fn resolve(self, bindings: &GenBindings) -> Result<FTy, String> {
-        match resolve(&self, bindings)? {
-            FTy::Gen(_) => Ok(self),
-            FTy::T(ty) => Ok(FTy::T(ty.resolve(bindings)?)),
+    pub fn resolve_gen(self, bindings: &GenBindings) -> Result<FTy, String> {
+        match self {
+            FTy::B(bound) => Ok(FTy::B(bound.resolve_gen(bindings)?)),
+            FTy::Gen(gen) => match resolve(&gen, bindings)? {
+                FTy::B(bound) => Ok(FTy::B(bound.resolve_gen(bindings)?)),
+                FTy::Gen(key) => Ok(FTy::Gen(key)),
+            },
         }
     }
 
-    pub fn match_or_bind(self, other_fty: FTy, bindings: &mut GenBindings) -> Result<FTy, String> {
+    pub fn merge(self, other_fty: FTy, bindings: &mut GenBindings) -> Result<FTy, String> {
         match self {
             FTy::Gen(gen) => match resolve_and_pop(&gen, bindings)? {
-                Either::Left(resolved_gen) => {
-                    bindings.insert(resolved_gen, other_fty.clone());
-                    Ok(other_fty)
-                }
-                Either::Right((key, ty)) => match other_fty {
-                    FTy::T(other_ty) => {
-                        let new_fty = FTy::T(ty.match_or_bind(other_ty, bindings)?);
-                        bindings.insert(key, new_fty.clone());
-                        Ok(new_fty)
+                Either::Left(key) => match other_fty {
+                    FTy::B(other_bound) => {
+                        bindings.insert(key.clone(), FTy::B(other_bound.clone()));
+                        Ok(FTy::Gen(key))
                     }
-                    FTy::Gen(_) => {
-                        let new_fty = other_fty.match_or_bind(FTy::T(ty), bindings)?;
-                        bindings.insert(key, new_fty.clone());
-                        Ok(new_fty)
+                    FTy::Gen(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
+                        Either::Left(other_key) => {
+                            if key != other_key {
+                                bindings.insert(key.clone(), FTy::Gen(other_key));
+                            }
+                            Ok(FTy::Gen(key))
+                        }
+                        Either::Right((other_key, other_bound)) => {
+                            bindings.insert(other_key.clone(), FTy::B(other_bound));
+                            bindings.insert(key, FTy::Gen(other_key.clone()));
+                            Ok(FTy::Gen(other_key))
+                        }
+                    },
+                },
+                Either::Right((key, mut bound)) => match other_fty {
+                    FTy::B(other_bound) => {
+                        bound.merge(other_bound.clone(), bindings)?;
+                        bindings.insert(key.clone(), FTy::B(bound));
+                        Ok(FTy::Gen(key))
                     }
+                    FTy::Gen(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
+                        Either::Left(other_key) => {
+                            bindings.insert(other_key, FTy::Gen(key.clone()));
+                            Ok(FTy::Gen(key))
+                        }
+                        Either::Right((other_key, other_bound)) => {
+                            bindings.insert(other_key, FTy::Gen(key.clone()));
+
+                            bound.merge(other_bound, bindings)?;
+                            bindings.insert(key.clone(), FTy::B(bound));
+                            Ok(FTy::Gen(key))
+                        }
+                    },
                 },
             },
-            FTy::T(ty) => match other_fty {
-                FTy::T(stack_ty) => Ok(FTy::T(ty.match_or_bind(stack_ty, bindings)?)),
-                FTy::Gen(_) => other_fty.match_or_bind(FTy::T(ty), bindings),
+            FTy::B(ref bound) => match other_fty {
+                FTy::B(stack_bound) => {
+                    let mut new_bound = bound.clone();
+                    new_bound.merge(stack_bound.clone(), bindings)?;
+                    Ok(FTy::B(new_bound))
+                }
+                FTy::Gen(_) => other_fty.merge(self, bindings),
             },
         }
     }
 
-    pub fn as_ty(&self) -> Result<Ty, String> {
+    pub fn as_bound(self) -> Result<Bound, String> {
         match self {
-            FTy::T(ty) => Ok(ty.clone()),
-            _ => Err("fty wasn't ty".into()),
+            FTy::B(bound) => Ok(bound),
+            FTy::Gen(_) => Err("fty was generic".into()),
         }
     }
 }
 
-impl From<Ty> for FTy {
-    fn from(value: Ty) -> Self {
-        FTy::T(value)
-    }
-}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
     from: Vec<FTy>,
@@ -134,10 +268,27 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(from: &[FTy], to: &[FTy]) -> Self {
+    pub fn new(from: Vec<FTy>, to: Vec<FTy>) -> Function {
+        Function { from, to }
+    }
+
+    pub fn from_fty(from: &[GenOrTy], to: &[GenOrTy]) -> Self {
         Function {
-            from: Vec::from(from),
-            to: Vec::from(to),
+            from: from
+                .iter()
+                .map(|fty: &GenOrTy| match fty {
+                    GenOrTy::T(ty) => FTy::B(Bound::from_upper(ty.clone())),
+                    GenOrTy::Gen(gen) => FTy::Gen(gen.clone()),
+                })
+                .collect(),
+
+            to: to
+                .iter()
+                .map(|fty: &GenOrTy| match fty {
+                    GenOrTy::T(ty) => FTy::B(Bound::from_lower(ty.clone())),
+                    GenOrTy::Gen(gen) => FTy::Gen(gen.clone()),
+                })
+                .collect(),
         }
     }
 
@@ -149,56 +300,111 @@ impl Function {
         &self.to
     }
 
-    fn resolve(self, bindings: &GenBindings) -> Result<Function, String> {
+    fn resolve_gen(self, bindings: &GenBindings) -> Result<Function, String> {
         let mut from = vec![];
         for fty in self.from {
-            from.push(resolve(&fty, bindings)?);
+            from.push(fty.resolve_gen(bindings)?);
         }
 
         let mut to = vec![];
         for fty in self.to {
-            to.push(resolve(&fty, bindings)?);
+            to.push(fty.resolve_gen(bindings)?);
         }
 
-        Ok(Function::new(&from, &to))
+        Ok(Function::new(from, to))
     }
 
-    fn least_upper_bound(
+    fn greatest_lower_bound(
         self,
-        wanted_ty: Function,
+        other: Function,
         bindings: &mut GenBindings,
     ) -> Result<Function, String> {
-        if self.from.len().overflowing_sub(wanted_ty.from.len())
-            != self.to.len().overflowing_sub(wanted_ty.to.len())
+        if self.from.len().overflowing_sub(other.from.len())
+            != self.to.len().overflowing_sub(other.to.len())
         {
             return Err("Functions have incompatible length".into());
         }
 
         let mut from: Vec<FTy> = vec![];
+        let mut rem_from: Vec<FTy> = vec![];
 
-        for pair in itertools::Itertools::zip_longest(self.from.into_iter(), wanted_ty.from) {
+        for pair in itertools::Itertools::zip_longest(self.from.into_iter(), other.from) {
             match pair {
                 itertools::EitherOrBoth::Both(self_arg, wanted_arg) => {
-                    from.push(self_arg.match_or_bind(wanted_arg, bindings)?)
+                    from.push(self_arg.merge(wanted_arg, bindings)?)
                 }
-                itertools::EitherOrBoth::Left(arg) => from.push(arg),
-                itertools::EitherOrBoth::Right(arg) => from.push(arg),
+                itertools::EitherOrBoth::Left(arg) => rem_from.push(arg),
+                itertools::EitherOrBoth::Right(arg) => rem_from.push(arg),
             }
         }
 
         let mut to: Vec<FTy> = vec![];
+        let mut rem_to: Vec<FTy> = vec![];
 
-        for pair in itertools::Itertools::zip_longest(self.to.into_iter(), wanted_ty.to) {
+        for pair in itertools::Itertools::zip_longest(self.to.into_iter(), other.to) {
             match pair {
                 itertools::EitherOrBoth::Both(self_arg, wanted_arg) => {
-                    to.push(self_arg.match_or_bind(wanted_arg, bindings)?)
+                    to.push(self_arg.merge(wanted_arg, bindings)?);
                 }
-                itertools::EitherOrBoth::Left(arg) => to.push(arg),
-                itertools::EitherOrBoth::Right(arg) => to.push(arg),
+                itertools::EitherOrBoth::Left(arg) => rem_to.push(arg),
+                itertools::EitherOrBoth::Right(arg) => rem_to.push(arg),
             }
         }
 
-        Ok(Function::new(&from, &to))
+        let mut rem = vec![];
+        for (from, to) in zip(rem_from, rem_to) {
+            rem.push(from.merge(to, bindings)?);
+        }
+
+        Ok(Function::new(from, to))
+    }
+
+    fn least_upper_bound(
+        self,
+        other: Function,
+        bindings: &mut GenBindings,
+    ) -> Result<Function, String> {
+        if self.from.len().overflowing_sub(other.from.len())
+            != self.to.len().overflowing_sub(other.to.len())
+        {
+            return Err("Functions have incompatible length".into());
+        }
+
+        let mut from: Vec<FTy> = vec![];
+        let mut rem_from: Vec<FTy> = vec![];
+
+        for pair in itertools::Itertools::zip_longest(self.from.into_iter(), other.from) {
+            match pair {
+                itertools::EitherOrBoth::Both(self_arg, wanted_arg) => {
+                    from.push(self_arg.merge(wanted_arg, bindings)?)
+                }
+                itertools::EitherOrBoth::Left(arg) => rem_from.push(arg),
+                itertools::EitherOrBoth::Right(arg) => rem_from.push(arg),
+            }
+        }
+
+        let mut to: Vec<FTy> = vec![];
+        let mut rem_to: Vec<FTy> = vec![];
+
+        for pair in itertools::Itertools::zip_longest(self.to.into_iter(), other.to) {
+            match pair {
+                itertools::EitherOrBoth::Both(self_arg, wanted_arg) => {
+                    to.push(self_arg.merge(wanted_arg, bindings)?);
+                }
+                itertools::EitherOrBoth::Left(arg) => rem_to.push(arg),
+                itertools::EitherOrBoth::Right(arg) => rem_to.push(arg),
+            }
+        }
+
+        let mut rem = vec![];
+        for (from, to) in zip(rem_from, rem_to) {
+            rem.push(from.merge(to, bindings)?);
+        }
+
+        from.extend_from_slice(&rem);
+        to.extend(rem);
+
+        Ok(Function::new(from, to))
     }
 }
 
@@ -210,14 +416,41 @@ pub enum Ty {
 }
 
 impl Ty {
-    pub fn resolve(self, bindings: &GenBindings) -> Result<Ty, String> {
+    pub fn resolve_gen(self, bindings: &GenBindings) -> Result<Ty, String> {
         match self {
-            Ty::F(f) => Ok(Ty::F(Box::new(f.resolve(bindings)?))),
+            Ty::F(f) => Ok(Ty::F(Box::new(f.resolve_gen(bindings)?))),
             _ => Ok(self.clone()),
         }
     }
 
-    fn match_or_bind(self, wanted_ty: Ty, bindings: &mut GenBindings) -> Result<Ty, String> {
+    fn greatest_lower_bound(self, wanted_ty: Ty, bindings: &mut GenBindings) -> Result<Ty, String> {
+        match self {
+            Self::F(f) => {
+                if let Ty::F(other_f) = wanted_ty {
+                    Ok(Ty::F(Box::new(f.greatest_lower_bound(*other_f, bindings)?)))
+                } else {
+                    Err(std::format!(
+                        "Types didn't match {:?} {:?}",
+                        Ty::F(f),
+                        wanted_ty
+                    ))
+                }
+            }
+            _ => {
+                if self != wanted_ty {
+                    Err(std::format!(
+                        "Types didn't match {:?} {:?}",
+                        self,
+                        wanted_ty
+                    ))
+                } else {
+                    Ok(wanted_ty)
+                }
+            }
+        }
+    }
+
+    fn least_upper_bound(self, wanted_ty: Ty, bindings: &mut GenBindings) -> Result<Ty, String> {
         match self {
             Self::F(f) => {
                 if let Ty::F(other_f) = wanted_ty {
