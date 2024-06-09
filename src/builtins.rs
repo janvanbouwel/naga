@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     stacklike::Store,
-    types::{Function, GenOrTy, Ty},
+    types::{FTy, Function, Ty},
 };
 
 pub fn initial_context() -> Store {
@@ -12,28 +12,21 @@ pub fn initial_context() -> Store {
     types.insert(
         "?".into(),
         Rc::new(|| {
-            let gen = GenOrTy::new_gen();
+            let gen = FTy::new_gen();
             Function::from_fty(&[Ty::Bool.into(), gen.clone(), gen.clone()], &[gen.clone()])
-        }),
-    );
-    types.insert(
-        "id".to_string(),
-        Rc::new(|| {
-            let gen = GenOrTy::new_gen();
-            Function::from_fty(&[gen.clone()], &[gen.clone()])
         }),
     );
     types.insert(
         "dup".to_string(),
         Rc::new(|| {
-            let gen = GenOrTy::new_gen();
+            let gen = FTy::new_gen();
             Function::from_fty(&[gen.clone()], &[gen.clone(), gen.clone()])
         }),
     );
     types.insert(
-        "drop".to_string(),
+        "_".to_string(),
         Rc::new(|| {
-            let gen = GenOrTy::new_gen();
+            let gen = FTy::new_gen();
             Function::from_fty(&[gen], &[])
         }),
     );
@@ -41,7 +34,7 @@ pub fn initial_context() -> Store {
     types.insert(
         "=".to_string(),
         Rc::new(|| {
-            let gen = GenOrTy::new_gen();
+            let gen = FTy::new_gen();
             Function::from_fty(&[gen.clone(), gen.clone()], &[Ty::Bool.into()])
         }),
     );
@@ -49,6 +42,7 @@ pub fn initial_context() -> Store {
     let math = Rc::new(|| Function::from_fty(&[Ty::Int.into(), Ty::Int.into()], &[Ty::Int.into()]));
     types.insert("add".to_string(), math.clone());
     types.insert("sub".to_string(), math.clone());
+    types.insert("mul".to_string(), math.clone());
 
     types
 }

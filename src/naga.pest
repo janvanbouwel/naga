@@ -2,8 +2,10 @@ integer = @{ ASCII_DIGIT+ }
 
 arity = ${ integer ~ "->" ~ integer }
 
-open_func  = { "(" }
-close_func = { ")" }
+open_func  = _{ "(" }
+close_func = _{ ")" }
+
+func_def = { open_func ~ separated_expressions ~ close_func }
 
 apply = { "!" }
 
@@ -11,23 +13,26 @@ quote = ${ "'" ~ identifier? }
 
 bind = ${ "$" ~ identifier }
 
-identifier = @{ "?" | "=" | (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")*) }
+identifier = @{ "?" | "=" | "_" | (ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_" | "-")*) }
 
 /// literal has precedence before identifier
 expression = _{
     arity
   | integer
-  | open_func
-  | close_func
+  | func_def
   | apply
   | quote
   | bind
   | identifier
 }
 
+sep = _{ NEWLINE | WHITE_SPACE }
+
+separated_expressions = _{ sep* ~ (expression ~ (sep+ ~ expression)*)? ~ sep* }
+
 program = _{
-    SOI ~ expression* ~ EOI
+    SOI ~ separated_expressions ~ EOI
 }
 
-WHITESPACE = _{ NEWLINE | WHITE_SPACE }
-COMMENT    = _{ "#" ~ (!"\n" ~ ANY)* }
+// WHITESPACE = _{}
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }

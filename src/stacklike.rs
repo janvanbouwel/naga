@@ -4,7 +4,7 @@ use either::Either::{self, Left, Right};
 
 use crate::{
     ast::{AstNode, StackMod},
-    types::{Bound, FTy, Function, GenBindings, GenOrTy, Ty},
+    types::{Bound, FTy, Function, GenBindings, Ty},
 };
 
 pub type Store = HashMap<String, Rc<dyn Fn() -> Function>>;
@@ -61,7 +61,7 @@ impl StackLike for Stack {
         println!("# bindings {bindings:?}");
 
         for fty in function.to() {
-            self.push(fty.clone().resolve_gen(&bindings)?.as_bound()?.as_ty()?);
+            self.push(fty.clone().resolve_gen(&bindings)?.as_ty()?);
             // self.push(ftype.clone().resolve(&bindings)?.as_ty().unwrap());
             println!("# {self:?}");
         }
@@ -90,10 +90,10 @@ impl FDStack {
         self.0.pop()
     }
 
-    fn replace(&mut self, bindings: &GenBindings) -> Result<(), String> {
+    fn replace(&mut self, bindings: &GenBindings, swap: bool) -> Result<(), String> {
         for fty in self.0.iter_mut() {
-            match fty {
-                FTy::Gen(_gen) => match fty.clone().resolve_gen(bindings)? {
+            if let FTy::Gen(_) = fty {
+                match fty.clone().resolve_gen(bindings)? {
                     FTy::B(mut bound) => {
                         if bound.upper.is_some() {
                             unreachable!(
@@ -104,14 +104,15 @@ impl FDStack {
                         if bound.lower.is_none() {
                             unreachable!("more uh oh")
                         }
-                        std::mem::swap(&mut bound.upper, &mut bound.lower);
+                        if swap {
+                            std::mem::swap(&mut bound.upper, &mut bound.lower);
+                        }
                         *fty = FTy::B(bound);
                     }
                     FTy::Gen(new_gen) => *fty = FTy::Gen(new_gen),
-                },
-                FTy::B(_) => {}
+                    FTy::T(ty) => *fty = FTy::T(ty),
+                }
             }
-            // *fty = fty.clone().resolve_gen(bindings)?;
         }
         Ok(())
     }
@@ -120,15 +121,9 @@ impl FDStack {
         self.0.reverse();
         for fty in self.0.iter_mut() {
             if let FTy::B(bound) = fty {
-                if bound.lower.is_some() {
-                    unreachable!(
-                        "{}",
-                        std::format!("funcdef from has lower bound: {bound:?}")
-                    )
-                }
                 if bound.upper.is_none() {
-                    unreachable!("more uh oh")
-                }
+                    *fty = FTy::T(bound.clone().as_ty().unwrap())
+                } // TODO only keep upper?
             }
         }
         self.0
@@ -137,12 +132,8 @@ impl FDStack {
     fn collect_to(mut self) -> Vec<FTy> {
         for fty in self.0.iter_mut() {
             if let FTy::B(bound) = fty {
-                if bound.upper.is_some() {
-                    unreachable!("{}", std::format!("idk {bound:?}"))
-                }
-                if bound.lower.is_none() {
-                    unreachable!("more uh oh")
-                }
+                bound.upper = None;
+                *fty = bound.clone().as_ty().unwrap().into();
             }
         }
         self.0
@@ -160,10 +151,11 @@ impl FuncDef {
     pub fn collect(self) -> Function {
         Function::from_fty(
             &[],
-            &[GenOrTy::T(Ty::F(Box::new(Function::new(
+            &[Ty::F(Box::new(Function::new(
                 self.from.collect_from(),
                 self.to.collect_to(),
-            ))))],
+            )))
+            .into()],
         )
     }
 
@@ -198,8 +190,10 @@ impl StackLike for FuncDef {
         self.take_all(function.from(), &mut bindings)?;
 
         println!("# bindings: {bindings:?}");
-        self.from.replace(&bindings)?;
+        self.from.replace(&bindings, true)?;
+        self.to.replace(&bindings, false)?;
         for fty in function.to() {
+            println!("# to fty: {fty:?}");
             self.to.push(fty.clone().resolve_gen(&bindings)?);
         }
 
@@ -207,11 +201,14 @@ impl StackLike for FuncDef {
     }
 
     fn pop_function(&mut self) -> Result<Function, String> {
-        // if let Some(GenOrTy::T(Ty::F(f))) = self.to.pop() {
-        if let Some(FTy::B(bound)) = self.to.pop() {
-            if let Ty::F(f) = bound.as_ty()? {
-                return Ok(*f);
+        match self.to.pop() {
+            Some(FTy::B(bound)) => {
+                if let Ty::F(f) = bound.as_ty()? {
+                    return Ok(*f);
+                }
             }
+            Some(FTy::T(Ty::F(f))) => return Ok(*f),
+            _ => {}
         }
         Err("Top of stack was not function".into())
     }
@@ -312,8 +309,8 @@ fn mod_stack(
         StackMod::Arity(from, to) => {
             println!("# arity from {} to {}", from, to);
 
-            let from_t: Vec<GenOrTy> = (0..*from).map(|_| GenOrTy::new_gen()).collect();
-            let to_t: Vec<GenOrTy> = (*from..(from + to)).map(|_| GenOrTy::new_gen()).collect();
+            let from_t: Vec<FTy> = (0..*from).map(|_| FTy::new_gen()).collect();
+            let to_t: Vec<FTy> = (*from..(from + to)).map(|_| FTy::new_gen()).collect();
             let wanted_f = Ty::F(Box::new(Function::from_fty(&from_t, &to_t)));
 
             println!("# {:?}", wanted_f);
@@ -333,10 +330,7 @@ fn mod_stack(
         },
         StackMod::Quote(id) => match store.get(id.as_str()) {
             Some(ft) => {
-                stack.apply(Function::from_fty(
-                    &[],
-                    &[GenOrTy::T(Ty::F(Box::new(ft())))],
-                ))?;
+                stack.apply(Function::from_fty(&[], &[Ty::F(Box::new(ft())).into()]))?;
 
                 println!("# '{}\t {:?}", id, stack);
             }

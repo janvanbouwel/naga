@@ -1,23 +1,17 @@
 ( ' dup = ) $True
-( 'id ( drop True ) = ) $False
+( ' ( _ True ) =) $False
 
 ( False True ? ) $not
+# abc
 
-# ( 'id ( drop False ) ? ! ) $and
-# ( ( drop True ) 'id ? ! ) $or
+( ' ( _ False ) ? ! ) $and
+( ( _ True ) ' ? ! ) $or
 ( 'not ' ? ! ) $xor
-( ' ? ! ) $test
 
-# ( 1->1 $a 0 a ) $test2
-
-True 'not test
-
-# 'not test2
-
-# True
-# False
-# True not False =
-# False not True =
-# True True and True =
-# True False and False =
+True
+False
+True not False =
+False not True =
+True True and True =
+True False and False =
 

@@ -1,0 +1,11 @@
+( ' dup = ) $True
+( ' ( _ True ) = ) $False
+
+( False True ? ) $not
+
+( ' ? ! ) $test
+
+# test requires 0->0 function and is given a 1->1 function
+# although when expanded this particular example would work
+# in general it isn't known whether the stack would be suitable for the 1->1 function
+False True 'not test

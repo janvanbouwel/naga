@@ -12,7 +12,7 @@ fn new_gen() -> Gen {
     ByAddress(Rc::new(()))
 }
 
-pub type GenBindings = HashMap<Gen, FTy>;
+pub type GenBindings = HashMap<Gen, Either<Gen, Bound>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bound {
@@ -21,12 +21,12 @@ pub struct Bound {
 }
 
 impl Bound {
-    fn from_upper(ty: Ty) -> Bound {
-        Bound {
-            upper: Some(ty),
-            lower: None,
-        }
-    }
+    // fn from_upper(ty: Ty) -> Bound {
+    //     Bound {
+    //         upper: Some(ty),
+    //         lower: None,
+    //     }
+    // }
 
     pub fn from_lower(ty: Ty) -> Bound {
         Bound {
@@ -100,8 +100,9 @@ fn resolve(gen: &Gen, bindings: &GenBindings) -> Result<FTy, String> {
     loop {
         if let Some(fty) = bindings.get(key) {
             match fty {
-                FTy::B(_bound) => return Ok(fty.clone()),
-                FTy::Gen(new_key) => {
+                Either::Right(bound) => return Ok(FTy::B(bound.clone())),
+
+                Either::Left(new_key) => {
                     if new_key == gen {
                         return Err(std::format!(
                             "resolving looped key {gen:?} bindings {bindings:?}"
@@ -126,8 +127,8 @@ fn resolve_and_pop(
     loop {
         if let Some(new_fty) = bindings.get(&key) {
             match new_fty {
-                FTy::B(_) => break,
-                FTy::Gen(new_gen) => {
+                Either::Right(_) => break,
+                Either::Left(new_gen) => {
                     if new_gen == fty {
                         return Err("resolving looped".into());
                     }
@@ -141,34 +142,17 @@ fn resolve_and_pop(
     }
 
     Ok(match bindings.remove(&key) {
-        Some(FTy::B(ty)) => Either::Right((key.clone(), ty)),
+        Some(Either::Right(bound)) => Either::Right((key.clone(), bound)),
         None => Either::Left(key.clone()),
         _ => unreachable!(),
     })
     // Ok(key.clone())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GenOrTy {
-    T(Ty),
-    Gen(Gen),
-}
-
-impl GenOrTy {
-    pub fn new_gen() -> GenOrTy {
-        GenOrTy::Gen(new_gen())
-    }
-}
-
-impl From<Ty> for GenOrTy {
-    fn from(value: Ty) -> Self {
-        GenOrTy::T(value)
-    }
-}
-
 #[derive(Clone, PartialEq, Eq)]
 pub enum FTy {
     B(Bound),
+    T(Ty),
     Gen(Gen),
 }
 
@@ -176,6 +160,7 @@ impl std::fmt::Debug for FTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::B(arg0) => f.debug_tuple("B").field(arg0).finish(),
+            Self::T(arg0) => f.debug_tuple("T").field(arg0).finish(),
             Self::Gen(arg0) => f
                 .debug_tuple("Gen")
                 .field(&(arg0.deref().deref() as *const ()))
@@ -192,72 +177,90 @@ impl FTy {
     pub fn resolve_gen(self, bindings: &GenBindings) -> Result<FTy, String> {
         match self {
             FTy::B(bound) => Ok(FTy::B(bound.resolve_gen(bindings)?)),
+            FTy::T(ty) => Ok(FTy::T(ty.resolve_gen(bindings)?)),
             FTy::Gen(gen) => match resolve(&gen, bindings)? {
                 FTy::B(bound) => Ok(FTy::B(bound.resolve_gen(bindings)?)),
+                FTy::T(ty) => Ok(FTy::T(ty.resolve_gen(bindings)?)),
                 FTy::Gen(key) => Ok(FTy::Gen(key)),
             },
         }
     }
 
     pub fn merge(self, other_fty: FTy, bindings: &mut GenBindings) -> Result<FTy, String> {
-        match self {
-            FTy::Gen(gen) => match resolve_and_pop(&gen, bindings)? {
-                Either::Left(key) => match other_fty {
-                    FTy::B(other_bound) => {
-                        bindings.insert(key.clone(), FTy::B(other_bound.clone()));
+        let either_self: Either<Gen, Bound> = match self {
+            FTy::B(bound) => Either::Right(bound),
+            FTy::T(ty) => Either::Right(Bound::from_lower(ty)),
+            FTy::Gen(gen) => Either::Left(gen),
+        };
+
+        let either_other: Either<Gen, Bound> = match other_fty {
+            FTy::B(bound) => Either::Right(bound),
+            FTy::T(ty) => Either::Right(Bound::from_lower(ty)),
+            FTy::Gen(gen) => Either::Left(gen),
+        };
+        match either_self {
+            Either::Left(gen) => match resolve_and_pop(&gen, bindings)? {
+                Either::Left(key) => match either_other {
+                    Either::Right(other_bound) => {
+                        bindings.insert(key.clone(), Either::Right(other_bound.clone()));
                         Ok(FTy::Gen(key))
                     }
-                    FTy::Gen(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
+                    Either::Left(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
                         Either::Left(other_key) => {
                             if key != other_key {
-                                bindings.insert(key.clone(), FTy::Gen(other_key));
+                                bindings.insert(key.clone(), Either::Left(other_key));
                             }
                             Ok(FTy::Gen(key))
                         }
                         Either::Right((other_key, other_bound)) => {
-                            bindings.insert(other_key.clone(), FTy::B(other_bound));
-                            bindings.insert(key, FTy::Gen(other_key.clone()));
+                            bindings.insert(other_key.clone(), Either::Right(other_bound));
+                            bindings.insert(key, Either::Left(other_key.clone()));
                             Ok(FTy::Gen(other_key))
                         }
                     },
                 },
-                Either::Right((key, mut bound)) => match other_fty {
-                    FTy::B(other_bound) => {
-                        bound.merge(other_bound.clone(), bindings)?;
-                        bindings.insert(key.clone(), FTy::B(bound));
-                        Ok(FTy::Gen(key))
-                    }
-                    FTy::Gen(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
-                        Either::Left(other_key) => {
-                            bindings.insert(other_key, FTy::Gen(key.clone()));
-                            Ok(FTy::Gen(key))
+                Either::Right((key, mut bound)) => {
+                    match either_other {
+                        Either::Right(other_bound) => {
+                            bound.merge(other_bound.clone(), bindings)?;
                         }
-                        Either::Right((other_key, other_bound)) => {
-                            bindings.insert(other_key, FTy::Gen(key.clone()));
-
-                            bound.merge(other_bound, bindings)?;
-                            bindings.insert(key.clone(), FTy::B(bound));
-                            Ok(FTy::Gen(key))
-                        }
-                    },
-                },
+                        Either::Left(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
+                            Either::Left(other_key) => {
+                                bindings.insert(other_key, Either::Left(key.clone()));
+                            }
+                            Either::Right((other_key, other_bound)) => {
+                                bindings.insert(other_key, Either::Left(key.clone()));
+                                bound.merge(other_bound, bindings)?;
+                            }
+                        },
+                    };
+                    bindings.insert(key.clone(), Either::Right(bound));
+                    Ok(FTy::Gen(key))
+                }
             },
-            FTy::B(ref bound) => match other_fty {
-                FTy::B(stack_bound) => {
+            Either::Right(bound) => match either_other {
+                Either::Right(stack_bound) => {
                     let mut new_bound = bound.clone();
                     new_bound.merge(stack_bound.clone(), bindings)?;
                     Ok(FTy::B(new_bound))
                 }
-                FTy::Gen(_) => other_fty.merge(self, bindings),
+                Either::Left(gen) => FTy::Gen(gen).merge(FTy::B(bound), bindings),
             },
         }
     }
 
-    pub fn as_bound(self) -> Result<Bound, String> {
+    pub fn as_ty(self) -> Result<Ty, String> {
         match self {
-            FTy::B(bound) => Ok(bound),
+            FTy::B(bound) => Ok(bound.as_ty()?),
+            FTy::T(ty) => Ok(ty),
             FTy::Gen(_) => Err("fty was generic".into()),
         }
+    }
+}
+
+impl From<Ty> for FTy {
+    fn from(value: Ty) -> Self {
+        FTy::T(value)
     }
 }
 
@@ -272,23 +275,10 @@ impl Function {
         Function { from, to }
     }
 
-    pub fn from_fty(from: &[GenOrTy], to: &[GenOrTy]) -> Self {
+    pub fn from_fty(from: &[FTy], to: &[FTy]) -> Self {
         Function {
-            from: from
-                .iter()
-                .map(|fty: &GenOrTy| match fty {
-                    GenOrTy::T(ty) => FTy::B(Bound::from_upper(ty.clone())),
-                    GenOrTy::Gen(gen) => FTy::Gen(gen.clone()),
-                })
-                .collect(),
-
-            to: to
-                .iter()
-                .map(|fty: &GenOrTy| match fty {
-                    GenOrTy::T(ty) => FTy::B(Bound::from_lower(ty.clone())),
-                    GenOrTy::Gen(gen) => FTy::Gen(gen.clone()),
-                })
-                .collect(),
+            from: Vec::from(from),
+            to: Vec::from(to),
         }
     }
 
@@ -322,7 +312,9 @@ impl Function {
         if self.from.len().overflowing_sub(other.from.len())
             != self.to.len().overflowing_sub(other.to.len())
         {
-            return Err("Functions have incompatible length".into());
+            return Err(std::format!(
+                "Functions have incompatible length, {self:?} - {other:?}"
+            ));
         }
 
         let mut from: Vec<FTy> = vec![];
@@ -367,7 +359,9 @@ impl Function {
         if self.from.len().overflowing_sub(other.from.len())
             != self.to.len().overflowing_sub(other.to.len())
         {
-            return Err("Functions have incompatible length".into());
+            return Err(std::format!(
+                "Functions have incompatible length, {self:?} {other:?}"
+            ));
         }
 
         let mut from: Vec<FTy> = vec![];

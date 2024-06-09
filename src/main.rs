@@ -9,7 +9,7 @@ fn main() {
             .to_string(),
     };
 
-    let ast = parse(&source).expect("failed to parse");
+    let ast = parse(&source).unwrap();
     typecheck(&ast).expect("Typechecking failed");
     let code = compile(&ast).expect("failed to compile");
 
