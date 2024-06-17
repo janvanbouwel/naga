@@ -13,7 +13,7 @@ fn main() {
     typecheck(&ast).expect("Typechecking failed");
     let code = compile(&ast).expect("failed to compile");
 
-    std::fs::write("out.py", &code).expect("writing failed");
+    std::fs::write("out/out.py", &code).expect("writing failed");
 
     println!("{}", code);
 }
