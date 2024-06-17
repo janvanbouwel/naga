@@ -1,10 +1,9 @@
 
-( 1 sub ) $decr
-( 2->1 $rec1 ( 'rec1 rec1 ) $rec dup 0 = (_ 1) ( dup decr rec mul ) ? ! ) $fac
+( 2->1 $rec dup 0 = ' ( 1 sub 'rec rec ) ? ! ) $fac
 
 # this might only work due to improper type resolving:
 # type of fac is technically a function that takes a function that takes a function that...,
 # but if it could resolve the Int's that would be nice, 
 # recursiveness is an accident and would be nicer explicit so that part is not a problem
 
-5 'fac fac
+42 'fac fac

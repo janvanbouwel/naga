@@ -8,11 +8,78 @@ use std::{collections::HashMap, rc::Rc};
 
 pub type Gen = ByAddress<Rc<()>>;
 
-fn new_gen() -> Gen {
-    ByAddress(Rc::new(()))
+type GenBindingsVal = Either<Gen, Bound>;
+pub type GenBindings = HashMap<Gen, GenBindingsVal>;
+
+fn insert(
+    bindings: &mut GenBindings,
+    key: Gen,
+    val: Either<Gen, Bound>,
+) -> Result<Option<GenBindingsVal>, String> {
+    if match &val {
+        Either::Left(g) => g == &key,
+        Either::Right(bound) => bound.contains(&key),
+    } {
+        return Err(std::format!(
+            "Gen {key:?} resolved to bound {val:?} which contains itself."
+        ));
+    }
+    Ok(bindings.insert(key, val))
 }
 
-pub type GenBindings = HashMap<Gen, Either<Gen, Bound>>;
+fn resolve(gen: &Gen, bindings: &GenBindings) -> Result<FTy, String> {
+    let mut key = gen;
+    loop {
+        if let Some(fty) = bindings.get(key) {
+            match fty {
+                Either::Right(bound) => return Ok(FTy::B(bound.clone())),
+                Either::Left(new_key) => {
+                    if new_key == gen {
+                        return Err(std::format!(
+                            "resolving looped key {gen:?} bindings {bindings:?}"
+                        ));
+                    }
+                    key = new_key;
+                    continue;
+                }
+            }
+        }
+        break;
+    }
+
+    Ok(FTy::Gen(key.clone()))
+}
+
+fn resolve_and_pop(
+    fty: &Gen,
+    bindings: &mut GenBindings,
+) -> Result<Either<Gen, (Gen, Bound)>, String> {
+    let mut key: Gen = fty.clone();
+
+    loop {
+        if let Some(new_fty) = bindings.get(&key) {
+            match new_fty {
+                Either::Right(_) => break,
+                Either::Left(new_gen) => {
+                    if new_gen == fty {
+                        return Err("resolving looped".into());
+                    }
+                    key = new_gen.clone();
+                    continue;
+                }
+            }
+        }
+
+        break;
+    }
+
+    Ok(match bindings.remove(&key) {
+        Some(Either::Right(bound)) => Either::Right((key.clone(), bound)),
+        None => Either::Left(key.clone()),
+        _ => unreachable!(),
+    })
+    // Ok(key.clone())
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bound {
@@ -93,60 +160,11 @@ impl Bound {
         }
         Ok(())
     }
-}
 
-fn resolve(gen: &Gen, bindings: &GenBindings) -> Result<FTy, String> {
-    let mut key = gen;
-    loop {
-        if let Some(fty) = bindings.get(key) {
-            match fty {
-                Either::Right(bound) => return Ok(FTy::B(bound.clone())),
-
-                Either::Left(new_key) => {
-                    if new_key == gen {
-                        return Err(std::format!(
-                            "resolving looped key {gen:?} bindings {bindings:?}"
-                        ));
-                    }
-                    key = new_key;
-                    continue;
-                }
-            }
-        }
-        break;
+    fn contains(&self, gen: &ByAddress<Rc<()>>) -> bool {
+        self.upper.as_ref().map_or(false, |u| u.contains(gen))
+            || self.lower.as_ref().map_or(false, |l| l.contains(gen))
     }
-    Ok(FTy::Gen(key.clone()))
-}
-
-fn resolve_and_pop(
-    fty: &Gen,
-    bindings: &mut GenBindings,
-) -> Result<Either<Gen, (Gen, Bound)>, String> {
-    let mut key: Gen = fty.clone();
-
-    loop {
-        if let Some(new_fty) = bindings.get(&key) {
-            match new_fty {
-                Either::Right(_) => break,
-                Either::Left(new_gen) => {
-                    if new_gen == fty {
-                        return Err("resolving looped".into());
-                    }
-                    key = new_gen.clone();
-                    continue;
-                }
-            }
-        }
-
-        break;
-    }
-
-    Ok(match bindings.remove(&key) {
-        Some(Either::Right(bound)) => Either::Right((key.clone(), bound)),
-        None => Either::Left(key.clone()),
-        _ => unreachable!(),
-    })
-    // Ok(key.clone())
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -161,17 +179,19 @@ impl std::fmt::Debug for FTy {
         match self {
             Self::B(arg0) => f.debug_tuple("B").field(arg0).finish(),
             Self::T(arg0) => f.debug_tuple("T").field(arg0).finish(),
-            Self::Gen(arg0) => f
-                .debug_tuple("Gen")
-                .field(&(arg0.deref().deref() as *const ()))
-                .finish(),
+            Self::Gen(arg0) => {
+                let mut gen = std::format!("{:?}", &(arg0.deref().deref() as *const ()));
+                gen.replace_range(..10, "");
+
+                f.debug_tuple("G").field(&gen).finish()
+            }
         }
     }
 }
 
 impl FTy {
     pub fn new_gen() -> FTy {
-        FTy::Gen(new_gen())
+        FTy::Gen(Gen::default())
     }
 
     pub fn resolve_gen(self, bindings: &GenBindings) -> Result<FTy, String> {
@@ -202,19 +222,19 @@ impl FTy {
             Either::Left(gen) => match resolve_and_pop(&gen, bindings)? {
                 Either::Left(key) => match either_other {
                     Either::Right(other_bound) => {
-                        bindings.insert(key.clone(), Either::Right(other_bound.clone()));
+                        insert(bindings, key.clone(), Either::Right(other_bound.clone()))?;
                         Ok(FTy::Gen(key))
                     }
                     Either::Left(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
                         Either::Left(other_key) => {
                             if key != other_key {
-                                bindings.insert(key.clone(), Either::Left(other_key));
+                                insert(bindings, key.clone(), Either::Left(other_key))?;
                             }
                             Ok(FTy::Gen(key))
                         }
                         Either::Right((other_key, other_bound)) => {
-                            bindings.insert(other_key.clone(), Either::Right(other_bound));
-                            bindings.insert(key, Either::Left(other_key.clone()));
+                            insert(bindings, other_key.clone(), Either::Right(other_bound))?;
+                            insert(bindings, key, Either::Left(other_key.clone()))?;
                             Ok(FTy::Gen(other_key))
                         }
                     },
@@ -226,15 +246,15 @@ impl FTy {
                         }
                         Either::Left(other_gen) => match resolve_and_pop(&other_gen, bindings)? {
                             Either::Left(other_key) => {
-                                bindings.insert(other_key, Either::Left(key.clone()));
+                                insert(bindings, other_key, Either::Left(key.clone()))?;
                             }
                             Either::Right((other_key, other_bound)) => {
-                                bindings.insert(other_key, Either::Left(key.clone()));
+                                insert(bindings, other_key, Either::Left(key.clone()))?;
                                 bound.merge(other_bound, bindings)?;
                             }
                         },
                     };
-                    bindings.insert(key.clone(), Either::Right(bound));
+                    insert(bindings, key.clone(), Either::Right(bound))?;
                     Ok(FTy::Gen(key))
                 }
             },
@@ -254,6 +274,14 @@ impl FTy {
             FTy::B(bound) => Ok(bound.as_ty()?),
             FTy::T(ty) => Ok(ty),
             FTy::Gen(_) => Err("fty was generic".into()),
+        }
+    }
+
+    pub fn contains(&self, gen: &Gen) -> bool {
+        match self {
+            FTy::Gen(g) => g == gen,
+            FTy::B(b) => b.contains(gen),
+            FTy::T(ty) => ty.contains(gen),
         }
     }
 }
@@ -400,6 +428,10 @@ impl Function {
 
         Ok(Function::new(from, to))
     }
+
+    fn contains(&self, gen: &ByAddress<Rc<()>>) -> bool {
+        self.from.iter().any(|fty| fty.contains(gen)) || self.to.iter().any(|fty| fty.contains(gen))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -468,6 +500,14 @@ impl Ty {
                     Ok(wanted_ty)
                 }
             }
+        }
+    }
+
+    fn contains(&self, gen: &ByAddress<Rc<()>>) -> bool {
+        match self {
+            Ty::Bool => false,
+            Ty::Int => false,
+            Ty::F(f) => f.contains(gen),
         }
     }
 }

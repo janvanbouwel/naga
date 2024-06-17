@@ -61,12 +61,12 @@ pub fn compile(ast: &Vec<AstNode>) -> Result<String, String> {
 }
 
 fn builtins_code() -> HashMap<String, String> {
-    let op = |f: &str| append(&std::format!("stack.pop(-2) {f} stack.pop()"));
+    let op = |f: &str| std::format!("[l, r] = stack[-2:]\nstack[-2:] = [l {f} r]");
     [
         ("'".to_string(), "pass".to_string()),
         (
             "?".to_string(),
-            "[test, case_t, case_f] = stack[-3:]\nstack[-3:]=[case_t if test else case_f]"
+            "[test, case_t, case_f] = stack[-3:]\nstack[-3:] = [case_t if test else case_f]"
                 .to_string(),
         ),
         ("dup".to_string(), append("stack[-1]")),
