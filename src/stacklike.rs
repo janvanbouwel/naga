@@ -92,8 +92,8 @@ impl FDStack {
 
     fn replace(&mut self, bindings: &GenBindings, swap: bool) -> Result<(), String> {
         for fty in self.0.iter_mut() {
-            if let FTy::Gen(_) = fty {
-                match fty.clone().resolve_gen(bindings)? {
+            match fty {
+                FTy::Gen(_) => match fty.clone().resolve_gen(bindings)? {
                     FTy::B(mut bound) => {
                         if bound.upper.is_some() {
                             unreachable!(
@@ -107,11 +107,12 @@ impl FDStack {
                         if swap {
                             std::mem::swap(&mut bound.upper, &mut bound.lower);
                         }
-                        *fty = FTy::B(bound);
+                        *fty = FTy::B(bound.resolve_gen(bindings)?);
                     }
                     FTy::Gen(new_gen) => *fty = FTy::Gen(new_gen),
-                    FTy::T(ty) => *fty = FTy::T(ty),
-                }
+                    FTy::T(ty) => *fty = FTy::T(ty.resolve_gen(bindings)?),
+                },
+                _ => *fty = fty.clone().resolve_gen(bindings)?,
             }
         }
         Ok(())
